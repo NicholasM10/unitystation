@@ -5,7 +5,17 @@ using UnityEngine.Events;
 using UnityEngine;
 
 public class ContextButton : MonoBehaviour {
-	
+
+	public GameObject target;
+
+	private void Awake()
+	{
+		if (target != null)
+		{
+			InitializeButton(target.name, target.GetComponentInChildren<SpriteRenderer>().sprite);
+		}
+	}
+
 	/// <summary>
 	/// Method for use with objects in context menu. Initializes button and sets its label/image.
 	/// </summary>

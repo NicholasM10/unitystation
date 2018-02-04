@@ -149,6 +149,7 @@ namespace Cupboards
 			}
 		}
 
+		[ContextMethod("Interact")]
 		public override void Interact(GameObject originator, Vector3 position, string hand)
 		{
 			//FIXME this should be rewritten to net messages, see i.e. TableTrigger
