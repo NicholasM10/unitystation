@@ -54,6 +54,8 @@ namespace PlayGroups.Input
 			CheckHandSwitch();
 			CheckClick();
 			CheckAltClick();
+			CheckRightClick();
+			//HideIfClickedOutside()
 		}
 
 		private void CheckHandSwitch()
@@ -94,6 +96,35 @@ namespace PlayGroups.Input
 				}
 				
 				UIManager.SetToolTip = $"clicked position: {Vector3Int.RoundToInt(position)}";
+			}
+		}
+
+		private void CheckRightClick()
+		{
+			if (UnityEngine.Input.GetMouseButtonDown(1))
+			{
+				//Check for items on the clicked possition, store position
+				Vector3 position = Camera.main.ScreenToWorldPoint(UnityEngine.Input.mousePosition);
+				position.z = 0f;
+
+				//Store objects in list
+				List<GameObject> objects = UITileList.GetItemsAtPosition(position);
+
+				//Show the context menu
+				UIManager.Instance.ShowContextMenu(position, objects);
+			}
+		}
+
+		//generic method to hide UI when clicked outside
+		private void HideIfClickedOutside(GameObject panel)
+		{
+			if (UnityEngine.Input.GetMouseButton(0) && panel.activeSelf &&
+				!RectTransformUtility.RectangleContainsScreenPoint(
+					panel.GetComponent<RectTransform>(),
+					UnityEngine.Input.mousePosition,
+					Camera.main))
+			{
+				panel.SetActive(false);
 			}
 		}
 
