@@ -19,13 +19,10 @@ namespace UI
 		public PlayerListUI playerListUIControl;
 		public Text toolTip;
 		public ControlWalkRun walkRunControl;
-<<<<<<< HEAD
-        
-=======
-		public GameObject contextMenuPrefab;
->>>>>>> b33a69d4c2577207ed7959e981aaf607859b671b
+        public GameObject contextMenuPrefab;
 
-		public static UIManager Instance
+
+        public static UIManager Instance
 		{
 			get
 			{
@@ -194,24 +191,22 @@ namespace UI
 			}
 		}
 
-		/// <summary>
-		/// Instantiates a context menu and passes a list of targets to its controller
-		/// </summary>
-		/// <param name="position">position to show the menu at</param>
-		/// <param name="targets">targets of the context menu</param>
-		public void ShowContextMenu(Vector3 position, List<GameObject> targets)
-		{
-			if (gameObject.transform.Find("ContextMenu") != null)
-			{
-				Destroy(gameObject.transform.Find("ContextMenu"));
-			}
-			GameObject menu = Instantiate(contextMenuPrefab, position, new Quaternion(), gameObject.transform);
-			menu.transform.SetAsLastSibling();
+        /// <summary>
+        /// Instantiates a context menu and passes a list of targets to its controller
+        /// </summary>
+        /// <param name="position">position to show the menu at</param>
+        /// <param name="targets">targets of the context menu</param>
+        public void ShowContextMenu(Vector3 position, List<GameObject> targets)
+        {
+            if (gameObject.transform.Find("ContextMenu") != null)
+            {
+                Destroy(gameObject.transform.Find("ContextMenu"));
+            }
+            GameObject menu = Instantiate(contextMenuPrefab, position, new Quaternion(), gameObject.transform);
+            menu.transform.SetAsLastSibling();
+        }
 
-
-		}
-
-		public static void SetDeathVisibility(bool vis)
+        public static void SetDeathVisibility(bool vis)
 		{
 //			Debug.Log("I was activated!");
 			foreach (Transform child in Display.hudRight.GetComponentsInChildren<Transform>(true))
