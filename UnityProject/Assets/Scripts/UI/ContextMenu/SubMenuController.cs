@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Events;
+using PlayGroup;
+using UI;
 
 public class  SubMenuController : MonoBehaviour
 {
@@ -14,9 +16,10 @@ public class  SubMenuController : MonoBehaviour
 
 	//UnityAction delegate for the button action
 	UnityAction action;
+    public delegate void AddListItem();
 
-	//Empty list to hold contextMenuItems
-	[SerializeField]
+    //Empty list to hold contextMenuItems
+    [SerializeField]
 	List<GameObject> contextMenuItems = new List<GameObject>();
 
 	/// <summary>
@@ -54,7 +57,6 @@ public class  SubMenuController : MonoBehaviour
 					{
                         //Log the method to console
                         //Debug.Log("Script: " + mono + "Method: " + method);
-                        Debug.Log("Hit");
 
 						//Create the button as a child of contentHolder and store it as part of the list
 						GameObject btn = Instantiate(actionButtonPrefab) as GameObject;
@@ -62,11 +64,16 @@ public class  SubMenuController : MonoBehaviour
 						btn.transform.SetParent(c);
 
 						//Apply the relevant info to the button
-						btn.GetComponentInChildren<Text>().text = ((ContextMethod)method.GetCustomAttributes(typeof(ContextMethod), true)[0]).contextTitle; //Text
-						//action = (UnityAction)Delegate.CreateDelegate(typeof(UnityAction), mono, method); //Bind the method to the UnityAction
-																										  //btn.GetComponent<Toggle>()
+						btn.GetComponentInChildren<Text>().text = ((ContextMethod)method.GetCustomAttributes(typeof(ContextMethod), true)[0]).contextTitle; //Text //action = (UnityAction)Delegate.CreateDelegate(typeof(UnityAction), mono, method); //Bind the method to the UnityAction                                                                                                                               //btn.GetComponent<Toggle>()
+                        if (((ContextMethod)method.GetCustomAttributes(typeof(ContextMethod), true)[0]).contextTitle == "Interact")
+                        {
+                            Debug.Log("Method found");
+                            //action = (UnityAction)method.CreateDelegate(typeof(UnityAction)/*, mono, method*/);
+                            //action = (UnityAction)Delegate.CreateDelegate(typeof(UnityAction), PlayerManager.LocalPlayerScript.gameObject, PlayerManager.LocalPlayerScript.gameObject.transform.position, UIManager.Hands.CurrentSlot.Item, method);
+                            btn.GetComponent<Button>().onClick.AddListener(() => t.GetComponent<Cupboards.ClosetControl>().Interact(PlayerManager.LocalPlayerScript.gameObject, PlayerManager.LocalPlayerScript.gameObject.transform.position, UIManager.Hands.CurrentSlot.eventName));
+                        }
 
-					}
+                    }
 				}
 			}
 		}
