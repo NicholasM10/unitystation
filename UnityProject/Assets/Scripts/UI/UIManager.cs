@@ -203,6 +203,10 @@ namespace UI
                 Destroy(gameObject.transform.Find("ContextMenu"));
             }
             GameObject menu = Instantiate(contextMenuPrefab, position, new Quaternion(), gameObject.transform);
+            if (targets.Count > 0)
+            {
+                menu.GetComponent<ContextMenuController>().target = targets[0]; // test
+            }
             menu.transform.SetAsLastSibling();
         }
 

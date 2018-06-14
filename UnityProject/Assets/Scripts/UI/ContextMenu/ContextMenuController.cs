@@ -10,6 +10,7 @@ public class ContextMenuController : MonoBehaviour {
 
 	// Use this for initialization
 	void Start () {
+        contentHolder = contentHolder.GetChild(0).GetComponent<RectTransform>();
 		subMenu.GetComponent<SubMenuController>().PopulateContextDropDown(target, contentHolder);
 	}
 	

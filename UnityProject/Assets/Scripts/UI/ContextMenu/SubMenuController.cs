@@ -52,8 +52,9 @@ public class  SubMenuController : MonoBehaviour
 					//If it finds any matching attributes on the method...
 					if (attributes.Length > 0)
 					{
-						//Log the method to console
-						//Debug.Log("Script: " + mono + "Method: " + method);
+                        //Log the method to console
+                        //Debug.Log("Script: " + mono + "Method: " + method);
+                        Debug.Log("Hit");
 
 						//Create the button as a child of contentHolder and store it as part of the list
 						GameObject btn = Instantiate(actionButtonPrefab) as GameObject;
@@ -62,7 +63,7 @@ public class  SubMenuController : MonoBehaviour
 
 						//Apply the relevant info to the button
 						btn.GetComponentInChildren<Text>().text = ((ContextMethod)method.GetCustomAttributes(typeof(ContextMethod), true)[0]).contextTitle; //Text
-						action = (UnityAction)Delegate.CreateDelegate(typeof(UnityAction), mono, method); //Bind the method to the UnityAction
+						//action = (UnityAction)Delegate.CreateDelegate(typeof(UnityAction), mono, method); //Bind the method to the UnityAction
 																										  //btn.GetComponent<Toggle>()
 
 					}
