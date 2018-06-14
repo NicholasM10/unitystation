@@ -198,11 +198,12 @@ namespace UI
         /// <param name="targets">targets of the context menu</param>
         public void ShowContextMenu(Vector3 position, List<GameObject> targets)
         {
-            if (gameObject.transform.Find("ContextMenu") != null)
+            if (FindObjectOfType<ContextMenuController>() != null)
             {
-                Destroy(gameObject.transform.Find("ContextMenu"));
+                Destroy(FindObjectOfType<ContextMenuController>().gameObject);
             }
-            GameObject menu = Instantiate(contextMenuPrefab, position, new Quaternion(), gameObject.transform);
+            Vector3 rectPos = Camera.main.WorldToScreenPoint(position); // Back to screen position to correctly place menu
+            GameObject menu = Instantiate(contextMenuPrefab, rectPos, new Quaternion(), gameObject.transform);
             if (targets.Count > 0)
             {
                 menu.GetComponent<ContextMenuController>().target = targets[0]; // test
