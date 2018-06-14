@@ -67,7 +67,6 @@ public class  SubMenuController : MonoBehaviour
 						btn.GetComponentInChildren<Text>().text = ((ContextMethod)method.GetCustomAttributes(typeof(ContextMethod), true)[0]).contextTitle; //Text //action = (UnityAction)Delegate.CreateDelegate(typeof(UnityAction), mono, method); //Bind the method to the UnityAction                                                                                                                               //btn.GetComponent<Toggle>()
                         if (((ContextMethod)method.GetCustomAttributes(typeof(ContextMethod), true)[0]).contextTitle == "Interact")
                         {
-                            Debug.Log("Method found");
                             //action = (UnityAction)method.CreateDelegate(typeof(UnityAction)/*, mono, method*/);
                             //action = (UnityAction)Delegate.CreateDelegate(typeof(UnityAction), PlayerManager.LocalPlayerScript.gameObject, PlayerManager.LocalPlayerScript.gameObject.transform.position, UIManager.Hands.CurrentSlot.Item, method);
                             btn.GetComponent<Button>().onClick.AddListener(() => t.GetComponent<Cupboards.ClosetControl>().Interact(PlayerManager.LocalPlayerScript.gameObject, PlayerManager.LocalPlayerScript.gameObject.transform.position, UIManager.Hands.CurrentSlot.eventName));
