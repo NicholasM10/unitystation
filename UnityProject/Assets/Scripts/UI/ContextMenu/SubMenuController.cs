@@ -5,8 +5,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Events;
-using PlayGroup;
-using UI;
 
 public class  SubMenuController : MonoBehaviour
 {
@@ -69,7 +67,7 @@ public class  SubMenuController : MonoBehaviour
                         {
                             //action = (UnityAction)method.CreateDelegate(typeof(UnityAction)/*, mono, method*/);
                             //action = (UnityAction)Delegate.CreateDelegate(typeof(UnityAction), PlayerManager.LocalPlayerScript.gameObject, PlayerManager.LocalPlayerScript.gameObject.transform.position, UIManager.Hands.CurrentSlot.Item, method);
-                            btn.GetComponent<Button>().onClick.AddListener(() => t.GetComponent<Cupboards.ClosetControl>().Interact(PlayerManager.LocalPlayerScript.gameObject, PlayerManager.LocalPlayerScript.gameObject.transform.position, UIManager.Hands.CurrentSlot.eventName));
+                            btn.GetComponent<Button>().onClick.AddListener(() => t.GetComponent<ClosetControl>().Interact(PlayerManager.LocalPlayerScript.gameObject, PlayerManager.LocalPlayerScript.gameObject.transform.position, UIManager.Hands.CurrentSlot.eventName));
                         }
 
                     }

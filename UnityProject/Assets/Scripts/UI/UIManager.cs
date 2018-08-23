@@ -37,7 +37,7 @@ using System.Collections.Generic;
 		public bool isInputFocus;
 
 
-        public static UIManager Instance
+		public static UIManager Instance
 		{
 			get
 			{
@@ -50,7 +50,7 @@ using System.Collections.Generic;
 			}
 		}
 
-//		public static ControlChat Chat => Instance.chatControl; //Use ChatRelay.Instance.AddToChatLog instead!
+		//public static ControlChat Chat => Instance.chatControl; //Use ChatRelay.Instance.AddToChatLog instead!
 
 		public static PlayerHealthUI PlayerHealthUI => Instance.playerHealthUI;
 
