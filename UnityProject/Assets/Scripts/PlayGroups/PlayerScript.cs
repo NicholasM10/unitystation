@@ -1,14 +1,10 @@
 using System.Collections;
-using PlayGroups.Input;
-using UI;
 using UnityEngine;
 using UnityEngine.Networking;
 using Facepunch.Steamworks;
-using UnityEngine.Experimental.UIElements;
 
-namespace PlayGroup
-{
-	public class PlayerScript : ManagedNetworkBehaviour
+
+public class PlayerScript : ManagedNetworkBehaviour
 	{
 		// the maximum distance the player needs to be to an object to interact with it
 		//1.75 is the optimal distance to now have any direction click too far
@@ -38,11 +34,16 @@ namespace PlayGroup
 
 		public PlayerSprites playerSprites { get; set; }
 
-		public PlayerSync playerSync { get; set; }
+		private PlayerSync playerSync; //Example of good on-demand reference init
+		public PlayerSync PlayerSync => playerSync ? playerSync : ( playerSync = GetComponent<PlayerSync>() );
+
+		public RegisterTile registerTile { get; set; }
 
 		public InputController inputController { get; set; }
 
 		public HitIcon hitIcon { get; set; }
+
+		public Vector3Int WorldPos => registerTile.WorldPosition;
 
 		public ChatChannel SelectedChannels
 		{
@@ -63,13 +64,13 @@ namespace PlayGroup
 
 		private IEnumerator WaitForLoad()
 		{
-			//fixme: name isn't resolved at the moment of pool creation 
+			//fixme: name isn't resolved at the moment of pool creation
 			//(player pools now use netIDs, but it would be nice to have names for readability)
 			yield return new WaitForSeconds(2f);
 			OnNameChange(playerName);
 			yield return new WaitForSeconds(1f);
 			//Refresh chat log:
-			ChatRelay.Instance.RefreshLog();
+	//s		ChatRelay.Instance.RefreshLog();
 		}
 
 		//isLocalPlayer is always called after OnStartClient
@@ -90,7 +91,7 @@ namespace PlayGroup
 		private void Start()
 		{
 			playerNetworkActions = GetComponent<PlayerNetworkActions>();
-			playerSync = GetComponent<PlayerSync>();
+			registerTile = GetComponent<RegisterTile>();
 			playerHealth = GetComponent<PlayerHealth>();
 			weaponNetworkActions = GetComponent<WeaponNetworkActions>();
 			soundNetworkActions = GetComponent<SoundNetworkActions>();
@@ -125,17 +126,17 @@ namespace PlayGroup
 					UIManager.Instance.GetComponent<ControlDisplays>().jobSelectWindow.SetActive(true);
 				}
 				UIManager.SetDeathVisibility(true);
-				if ( CustomNetworkManager.Instance.SteamServer ) {
+				if ( BuildPreferences.isSteamServer ) {
 					// Send request to be authenticated by the server
 					if ( Client.Instance != null ) {
-						Debug.Log( "Client Requesting Auth" );
+						Logger.Log( "Client Requesting Auth", Category.Steam );
 						// Generate authentication Ticket
 						var ticket = Client.Instance.Auth.GetAuthSessionTicket();
 						var ticketBinary = ticket.Data;
 						// Send Clientmessage to authenticate
 						RequestAuthMessage.Send( Client.Instance.SteamId, ticketBinary );
 					} else {
-						Debug.Log( "Client NOT requesting auth" );
+						Logger.Log( "Client NOT requesting auth", Category.Steam );
 					}
 				}
 //				Request sync to get all the latest transform data
@@ -146,7 +147,7 @@ namespace PlayGroup
 			else if (isServer)
 			{
 				playerMove = GetComponent<PlayerMove>();
-								
+
 				//Add player to player list
 				PlayerList.Instance.Add(new ConnectedPlayer
 				{
@@ -175,12 +176,12 @@ namespace PlayGroup
 		}
 
 		/// <summary>
-		/// Trying to set initial name, if player has none 
+		/// Trying to set initial name, if player has none
 		/// </summary>
 		[Command]
 		private void CmdTrySetInitialName(string name)
 		{
-//			Debug.Log($"TrySetName {name}");
+//			Logger.Log($"TrySetName {name}");
 			if (PlayerList.Instance != null)
 			{
 				var player = PlayerList.Instance.Get(connectionToClient);
@@ -199,22 +200,20 @@ namespace PlayGroup
 		{
 			if (string.IsNullOrEmpty(newName))
 			{
-				Debug.LogError("NO NAME PROVIDED!");
+				Logger.LogError("NO NAME PROVIDED!", Category.Connections);
 				return;
 			}
-//			Debug.Log($"OnNameChange: GOName '{gameObject.name}'->'{newName}'; playerName '{playerName}'->'{newName}'");
+//			Logger.Log($"OnNameChange: GOName '{gameObject.name}'->'{newName}'; playerName '{playerName}'->'{newName}'");
 			playerName = newName;
 			gameObject.name = newName;
 		}
 
-		public float DistanceTo(Vector3 position)
-		{
-			//Because characters are taller than they are wider, their reach upwards/downards was greater
-			//Flooring that shit fixes it
-			Vector3Int pos = new Vector3Int(Mathf.FloorToInt(transform.position.x), Mathf.FloorToInt(transform.position.y),
-				Mathf.FloorToInt(transform.position.z));
-			return (pos - position).magnitude;
-//			return (Vector3Int.RoundToInt(transform.position) - position).magnitude;
+		public float DistanceTo(Vector3 position){
+			return (registerTile.WorldPosition - position).magnitude;
+		}
+
+		public bool IsInReach( GameObject go, float interactDist = interactionDistance ) {
+			return IsInReach( go.WorldPos(), interactDist );
 		}
 
 		/// <summary>
@@ -225,8 +224,8 @@ namespace PlayGroup
 		public bool IsInReach(Vector3 position, float interactDist = interactionDistance)
 		{
 			//If click is in diagonal direction, extend reach slightly
-			int distanceX = Mathf.FloorToInt(Mathf.Abs(transform.position.x - position.x));
-			int distanceY = Mathf.FloorToInt(Mathf.Abs(transform.position.y - position.y));
+			int distanceX = Mathf.FloorToInt(Mathf.Abs(registerTile.WorldPosition.x - position.x));
+			int distanceY = Mathf.FloorToInt(Mathf.Abs(registerTile.WorldPosition.y - position.y));
 			if (distanceX == 1 && distanceY == 1)
 			{
 				return DistanceTo(position) <= interactDist + 0.4f;
@@ -304,7 +303,7 @@ namespace PlayGroup
 			if (JobType == JobType.CLOWN)
 			{
 				modifiers |= ChatModifier.Clown;
-				
+
 			}
 
 			return modifiers;
@@ -321,4 +320,3 @@ namespace PlayGroup
 			UIManager.SetToolTip = "";
 		}
 	}
-}

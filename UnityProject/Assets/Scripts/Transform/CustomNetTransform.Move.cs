@@ -60,7 +60,7 @@ public partial class CustomNetTransform {
 			bool shouldStop =
 				Vector3.Distance( serverState.ActiveThrow.OriginPos, serverState.WorldPosition ) >= serverState.ActiveThrow.Trajectory.magnitude;
 //			if ( shouldStop ) {
-//				Debug.Log( $"Should stop throw: {Vector3.Distance( serverState.ActiveThrow.OriginPos, serverState.WorldPosition )}" +
+//				Logger.Log( $"Should stop throw: {Vector3.Distance( serverState.ActiveThrow.OriginPos, serverState.WorldPosition )}" +
 //				           $" >= {trajectory.magnitude}" );
 //			}
 			return shouldStop;
@@ -128,10 +128,10 @@ public partial class CustomNetTransform {
 		bool isWithinTile = intOrigin == intGoal; //same tile, no need to validate stuff
 		if ( isWithinTile || MatrixManager.IsPassableAt( intOrigin, intGoal ) ) {
 			//advance
-			clientState.Position += moveDelta;
+			clientState.WorldPosition += moveDelta;
 		} else {
 			//stop
-//			Debug.Log( $"{gameObject.name}: predictive stop @ {clientState.WorldPosition} to {intGoal}" );
+//			Logger.Log( $"{gameObject.name}: predictive stop @ {clientState.WorldPosition} to {intGoal}" );
 			clientState.Speed = 0f;
 			clientState.Impulse = Vector2.zero;
 			clientState.SpinFactor = 0;
@@ -170,8 +170,8 @@ public partial class CustomNetTransform {
 	public void Throw( ThrowInfo info ) {
 		SetPosition( info.OriginPos, false );
 
-		float throwSpeed = itemAttributes.throwSpeed * 10; //tiles per second
-		float throwRange = itemAttributes.throwRange;
+		float throwSpeed = ItemAttributes.throwSpeed * 10; //tiles per second
+		float throwRange = ItemAttributes.throwRange;
 
 		Vector2 impulse = info.Trajectory.normalized;
 
@@ -179,24 +179,24 @@ public partial class CustomNetTransform {
 		//limit throw range here
 		if ( Vector2.Distance( info.OriginPos, info.TargetPos ) > throwRange ) {
 			correctedInfo.TargetPos = info.OriginPos + ( ( Vector3 ) impulse * throwRange );
-//			Debug.Log( $"Throw distance clamped to {correctedInfo.Trajectory.magnitude}, " +
+//			Logger.Log( $"Throw distance clamped to {correctedInfo.Trajectory.magnitude}, " +
 //			           $"target changed {info.TargetPos}->{correctedInfo.TargetPos}" );
 		}
 
 		//add player momentum
 		float playerMomentum = 0f;
 		//If throwing nearby, do so at 1/2 speed (looks clunky otherwise)
-		float speedMultiplier = Mathf.Clamp( correctedInfo.Trajectory.magnitude / throwRange, 0.6f, 1f );
+		float speedMultiplier = Mathf.Clamp( correctedInfo.Trajectory.magnitude / (throwRange <= 0 ? 1 : throwRange), 0.6f, 1f );
 		serverState.Speed = ( Random.Range( -0.2f, 0.2f ) + throwSpeed + playerMomentum ) * speedMultiplier;
 		correctedInfo.InitialSpeed = serverState.Speed;
 
 		serverState.Impulse = impulse;
 		if ( info.SpinMode != SpinMode.None ) {
-			serverState.SpinFactor = ( sbyte ) ( Mathf.Clamp( throwSpeed * (2f / (int)itemAttributes.size + 1), sbyte.MinValue, sbyte.MaxValue )
+			serverState.SpinFactor = ( sbyte ) ( Mathf.Clamp( throwSpeed * (2f / (int)ItemAttributes.size + 1), sbyte.MinValue, sbyte.MaxValue )
 			                                     * ( info.SpinMode == SpinMode.Clockwise ? 1 : -1 ) );
 		}
 		serverState.ActiveThrow = correctedInfo;
-//		Debug.Log( $"Throw:{correctedInfo} {serverState}" );
+//		Logger.Log( $"Throw:{correctedInfo} {serverState}" );
 		NotifyPlayers();
 	}
 
@@ -263,7 +263,7 @@ public partial class CustomNetTransform {
 	private void AdvanceMovement( Vector3 tempOrigin, Vector3 tempGoal ) {
 		//Natural throw ending
 		if ( IsBeingThrown && ShouldStopThrow ) {
-//			Debug.Log( $"{gameObject.name}: Throw ended at {serverState.WorldPosition}" );
+//			Logger.Log( $"{gameObject.name}: Throw ended at {serverState.WorldPosition}" );
 			serverState.ActiveThrow = ThrowInfo.NoThrow;
 			//Change spin when we hit the ground. Zero was kinda dull
 			serverState.SpinFactor = ( sbyte ) ( -serverState.SpinFactor * 0.2f );
@@ -287,7 +287,7 @@ public partial class CustomNetTransform {
 	/// This check works only for 2 adjacent tiles, that's why floating check is recursive
 	[Server]
 	private bool ValidateFloating( Vector3 origin, Vector3 goal ) {
-//		Debug.Log( $"{gameObject.name} check {origin}->{goal}. Speed={serverState.Speed}" );
+//		Logger.Log( $"{gameObject.name} check {origin}->{goal}. Speed={serverState.Speed}" );
 		Vector3Int intOrigin = Vector3Int.RoundToInt( origin );
 		Vector3Int intGoal = Vector3Int.RoundToInt( goal );
 		var info = serverState.ActiveThrow;
@@ -300,7 +300,7 @@ public partial class CustomNetTransform {
 		if ( hitDamageables != null && hitDamageables.Count > 0 && !Equals( info, ThrowInfo.NoThrow ) ) {
 			for ( var i = 0; i < hitDamageables.Count; i++ ) {
 				//Remove cast to int when moving health values to float
-				var damage = ( int ) ( itemAttributes.throwDamage * 2 );
+				var damage = ( int ) ( ItemAttributes.throwDamage * 2 );
 				hitDamageables[i].ApplyDamage( info.ThrownBy, damage, DamageType.BRUTE, info.Aim );
 				PostToChatMessage.SendThrowHitMessage( gameObject, hitDamageables[i].gameObject, damage, info.Aim );
 			}
@@ -314,7 +314,7 @@ public partial class CustomNetTransform {
 	///Stopping drift, killing impulse
 	[Server]
 	private void StopFloating() {
-//		Debug.Log( $"{gameObject.name} stopped floating" );
+//		Logger.Log( $"{gameObject.name} stopped floating" );
 		serverState.Impulse = Vector2.zero;
 		serverState.Speed = 0;
 		serverState.Rotation = transform.rotation.eulerAngles.z;
@@ -357,7 +357,7 @@ public partial class CustomNetTransform {
 			foreach ( HealthBehaviour obj in objectsOnTile ) {
 				//Skip thrower for now
 				if ( obj.gameObject == thrownBy ) {
-					Debug.Log( $"{thrownBy.name} not hurting himself" );
+					Logger.Log( $"{thrownBy.name} not hurting himself", Category.Throwing );
 					continue;
 				}
 				//Skip dead bodies

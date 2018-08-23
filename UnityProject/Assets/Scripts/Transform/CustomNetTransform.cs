@@ -1,11 +1,6 @@
 using System;
-using System.Collections.Generic;
-using PlayGroup;
-using Tilemaps;
-using Tilemaps.Behaviours.Objects;
 using UnityEngine;
 using UnityEngine.Networking;
-using Random = UnityEngine.Random;
 
 // ReSharper disable CompareOfFloatsByEqualityOperator
 /// Current state of transform, server modifies these and sends to clients.
@@ -56,6 +51,7 @@ public struct TransformState {
 		}
 	}
 	public float Rotation;
+	public bool IsLocalRotation;
 	/// Spin direction and speed, if it should spin
 	public sbyte SpinFactor; 
 	
@@ -68,14 +64,22 @@ public struct TransformState {
 	public override string ToString()
 	{
 		return Equals( HiddenState ) ? "[Hidden]" : $"[{nameof( Position )}: {(Vector2)Position}, {nameof( WorldPosition )}: {(Vector2)WorldPosition}, " +
-		       $"{nameof( Speed )}: {Speed}, {nameof( Impulse )}: {Impulse}, {nameof( Rotation )}: {Rotation}, {nameof( SpinFactor )}: {SpinFactor}, " +
-		                                            $" {nameof( MatrixId )}: {MatrixId}]";
+		       $"{nameof( Speed )}: {Speed}, {nameof( Impulse )}: {Impulse}, {nameof( Rotation )}: {Rotation}, {nameof( IsLocalRotation )}: {IsLocalRotation}, " +
+		       $"{nameof( SpinFactor )}: {SpinFactor}, {nameof( MatrixId )}: {MatrixId}]";
 	}
 }
 
 public partial class CustomNetTransform : ManagedNetworkBehaviour //see UpdateManager
 {
 	private RegisterTile registerTile;
+	private ItemAttributes ItemAttributes {
+		get {
+			if ( itemAttributes == null ) {
+				itemAttributes = GetComponent<ItemAttributes>();
+			}
+			return itemAttributes;
+		}
+	}
 	private ItemAttributes itemAttributes;
 
 	private TransformState serverState = TransformState.HiddenState; //used for syncing with players, matters only for server
@@ -126,7 +130,7 @@ public partial class CustomNetTransform : ManagedNetworkBehaviour //see UpdateMa
 			bool initError = !MatrixManager.Instance || !registerTile;
 			if ( initError ) {
 				serverState.MatrixId = 0;
-				Debug.LogWarning( $"{gameObject.name}: unable to detect MatrixId!" );
+				Logger.LogWarning( $"{gameObject.name}: unable to detect MatrixId!", Category.Transform );
 			} else {
 				serverState.MatrixId = MatrixManager.AtPoint( Vector3Int.RoundToInt(transform.position) ).Id;
 			}
@@ -152,7 +156,7 @@ public partial class CustomNetTransform : ManagedNetworkBehaviour //see UpdateMa
 	public void ReInitServerState()
 	{
 		InitServerState();
-	//	Debug.Log($"{name} reInit: {serverTransformState}");
+	//	Logger.Log($"{name} reInit: {serverTransformState}");
 	}
 
 	/// Essentially the Update loop
@@ -204,7 +208,7 @@ public partial class CustomNetTransform : ManagedNetworkBehaviour //see UpdateMa
 		if (!isServer && registerTile.Position != Vector3Int.RoundToInt(clientState.Position) )
 			//&& !isPushing && !predictivePushing)
 		{
-//			Debug.LogFormat($"registerTile updating {registerTile.WorldPosition}->{Vector3Int.RoundToInt(clientState.WorldPosition)} ");
+			Logger.LogTraceFormat(  "registerTile updating {0}->{1} ", Category.Transform, registerTile.WorldPosition, Vector3Int.RoundToInt( clientState.WorldPosition ) );
 			RegisterObjects();
 		}
 	}
@@ -250,10 +254,10 @@ public partial class CustomNetTransform : ManagedNetworkBehaviour //see UpdateMa
 	[Server]
 	private void CheckMatrixSwitch( bool notify = true ) {
 		var pos = Vector3Int.RoundToInt( serverState.WorldPosition );
-//		Debug.Log( $"{gameObject.name} doing matrix switch check for {pos}" );
+		Logger.LogTraceFormat( "{0} doing matrix switch check for {1}", Category.Transform, gameObject.name, pos );
 		int newMatrixId = MatrixManager.AtPoint( pos ).Id;
 		if ( serverState.MatrixId != newMatrixId ) {
-//			Debug.Log( $"{gameObject} matrix {serverState.MatrixId}->{newMatrixId}" );
+			Logger.LogTraceFormat( "{0} matrix {1}->{2}", Category.Transform, gameObject, serverState.MatrixId, newMatrixId );
 
 			//It's very important to save World Pos before matrix switch and restore it back afterwards
 			var worldPosToPreserve = serverState.WorldPosition;
@@ -308,8 +312,15 @@ public partial class CustomNetTransform : ManagedNetworkBehaviour //see UpdateMa
 		clientState = newState;
 		UpdateActiveStatus();
 		//sync rotation if not spinning
-		if ( clientState.SpinFactor == 0 ) {
-			transform.rotation = Quaternion.Euler( 0, 0, clientState.Rotation );
+		if ( clientState.SpinFactor != 0 ) {
+			return;
+		}
+
+		var rotation = Quaternion.Euler( 0, 0, clientState.Rotation );
+		if ( clientState.IsLocalRotation ) {
+			transform.localRotation = rotation;
+		} else {
+			transform.rotation = rotation;
 		}
 	}
 
@@ -336,16 +347,18 @@ public partial class CustomNetTransform : ManagedNetworkBehaviour //see UpdateMa
 	[Server]
 	public void NotifyPlayers()
 	{
-//		Debug.Log( $"{gameObject.name} Notified" );
+		Logger.LogTraceFormat( "{0} Notified", Category.Transform, gameObject.name );
 		SyncMatrix();
+		serverState.IsLocalRotation = false;
 		TransformStateMessage.SendToAll(gameObject, serverState);
 	}
 
 	///     Sync with new player joining
 	/// <param name="playerGameObject">Whom to notify</param>
+	/// <param name="isLocalRotation">(for init) tells client to assign transform.localRotation instead of transform.rotation if true</param>
 	[Server]
-	public void NotifyPlayer(GameObject playerGameObject)
-	{
+	public void NotifyPlayer(GameObject playerGameObject, bool isLocalRotation = false) {
+		serverState.IsLocalRotation = isLocalRotation;
 		TransformStateMessage.Send(playerGameObject, gameObject, serverState);
 	}
 

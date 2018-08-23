@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using PlayGroup;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -25,6 +24,17 @@ public class GameManager : MonoBehaviour
 
 	public float GetRoundTime { get; private set; } = 480f;
 
+	public int RoundsPerMap = 10;
+	
+	public string[] Maps = {"Assets/scenes/OutpostDeathmatch.unity", "Assets/scenes/Flashlight Deathmatch.unity"};
+	
+	private int MapRotationCount = 0;
+	private int MapRotationMapsCounter = 0;
+
+
+	//Put the scenes in the unity 3d editor.
+
+
 	private void Awake()
 	{
 		if (Instance == null)
@@ -47,13 +57,13 @@ public class GameManager : MonoBehaviour
 		SceneManager.sceneLoaded -= OnLevelFinishedLoading;
 	}
 
-	private void OnValidate()
-	{
-		if (Occupations.All(o => o.GetComponent<OccupationRoster>().Type != JobType.ASSISTANT))
-		{
-			Debug.LogError("There is no ASSISTANT job role defined in the the GameManager Occupation rosters");
-		}
-	}
+//	private void OnValidate() 
+//	{
+//		if (Occupations.All(o => o.GetComponent<OccupationRoster>().Type != JobType.ASSISTANT)) //wtf is that about
+//		{
+//			Logger.LogError("There is no ASSISTANT job role defined in the the GameManager Occupation rosters");
+//		}
+//	}
 
 	private void OnLevelFinishedLoading(Scene scene, LoadSceneMode mode)
 	{
@@ -139,7 +149,7 @@ public class GameManager : MonoBehaviour
 
 		if ( count != 0 )
 		{
-			Debug.Log($"{jobType} count: {count}");
+			Logger.Log($"{jobType} count: {count}", Category.Jobs);
 		}
 		return count;
 	}
@@ -205,7 +215,21 @@ public class GameManager : MonoBehaviour
 	{
 		if (CustomNetworkManager.Instance._isServer)
 		{
-			CustomNetworkManager.Instance.ServerChangeScene(SceneManager.GetActiveScene().name);
+			MapRotationCount++;
+			if (MapRotationCount < RoundsPerMap * Maps.Length) 
+			{
+				if ((MapRotationCount % RoundsPerMap) == 0) 
+				{
+					MapRotationMapsCounter++;
+				}
+			}
+			else
+			{
+				MapRotationCount = 0;
+				MapRotationMapsCounter = 0;
+			}
+			
+			CustomNetworkManager.Instance.ServerChangeScene (Maps[MapRotationMapsCounter]);
 		}
 	}
 }

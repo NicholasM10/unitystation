@@ -1,10 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
-using PlayGroup;
-using UI;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -29,18 +26,25 @@ public class PlayerList : NetworkBehaviour
 	//For combat demo
 	public Dictionary<string, int> playerScores = new Dictionary<string, int>();
 
-	//For job formatting purposes
-	private static readonly TextInfo textInfo = new CultureInfo("en-US", false).TextInfo;
 
 	private void Awake()
 	{
 		if ( Instance == null )
 		{
 			Instance = this;
-		}
+            Instance.ResetSyncedState();
+        }
 		else
 		{
 			Destroy(gameObject);
+		}
+	}
+
+	/// Allowing players to sync after round restart
+	public void ResetSyncedState() {
+		for ( var i = 0; i < values.Count; i++ ) {
+			var player = values[i];
+			player.Synced = false;
 		}
 	}
 
@@ -52,28 +56,26 @@ public class PlayerList : NetworkBehaviour
 		{
 			return;
 		}
+		var perPlayer = perpetrator.Player();
+		var victimPlayer = victim.Player();
+		if ( perPlayer == null || victimPlayer == null ) {
+			return;
+		}
 
-		var playerName = Get(perpetrator, true).Name;
+		var playerName = perPlayer.Name;
 		if ( playerScores.ContainsKey(playerName) )
 		{
 			playerScores[playerName]++;
 		}
 
-		JobType perpetratorJob = perpetrator.GetComponent<PlayerScript>().JobType;
-		JobDepartment perpetratorDept = SpawnPoint.GetJobDepartment(perpetratorJob);
+		JobDepartment perpetratorDept = SpawnPoint.GetJobDepartment(perPlayer.Job);
 
 		if ( !departmentScores.ContainsKey(perpetratorDept) )
 		{
 			departmentScores.Add(perpetratorDept, 0);
 		}
 
-		if ( victim == null )
-		{
-			return;
-		}
-
-		JobType victimJob = victim.GetComponent<PlayerScript>().JobType;
-		JobDepartment victimDept = SpawnPoint.GetJobDepartment(victimJob);
+		JobDepartment victimDept = SpawnPoint.GetJobDepartment(victimPlayer.Job);
 
 		if ( perpetratorDept == victimDept )
 		{
@@ -129,13 +131,8 @@ public class PlayerList : NetworkBehaviour
 		foreach (var player in ClientConnectedPlayers)
 		{
 			string curList = UIManager.Instance.playerListUIControl.nameList.text;
-			UIManager.Instance.playerListUIControl.nameList.text = $"{curList}{player.Name} ({PrepareJobString(player.Job)})\r\n";
+			UIManager.Instance.playerListUIControl.nameList.text = $"{curList}{player.Name} ({player.Job.JobString()})\r\n";
 		}
-	}
-
-	private static string PrepareJobString(JobType job)
-	{
-		return job.ToString().Equals("NULL") ? "*just joined" : textInfo.ToTitleCase(job.ToString().ToLower());
 	}
 
 	/// Don't do this unless you realize the consequences
@@ -146,10 +143,12 @@ public class PlayerList : NetworkBehaviour
 	}
 
 	[Server]
-	public void UpdatePlayer(NetworkConnection conn, GameObject newGameObject)
+	public ConnectedPlayer UpdatePlayer(NetworkConnection conn, GameObject newGameObject)
 	{
 		ConnectedPlayer connectedPlayer = Get(conn);
 		connectedPlayer.GameObject = newGameObject;
+		CheckRcon();
+		return connectedPlayer;
 	}
 
 	/// Add previous ConnectedPlayer state to the old values list
@@ -177,12 +176,12 @@ public class PlayerList : NetworkBehaviour
 	{
 		if ( player.Equals(ConnectedPlayer.Invalid) )
 		{
-			Debug.Log("Refused to add invalid connected player");
+			Logger.Log("Refused to add invalid connected player",Category.Connections);
 			return;
 		}
 		if ( ContainsConnection(player.Connection) )
 		{
-//			Debug.Log($"Updating {Get(player.Connection)} with {player}");
+//			Logger.Log($"Updating {Get(player.Connection)} with {player}");
 			ConnectedPlayer existingPlayer = Get(player.Connection);
 			existingPlayer.GameObject = player.GameObject;
 			existingPlayer.Name = player.Name; //Note that name won't be changed to empties/nulls
@@ -192,34 +191,35 @@ public class PlayerList : NetworkBehaviour
 		else
 		{
 			values.Add(player);
-			Debug.Log($"Added {player}. Total:{values.Count}; {string.Join("; ",values)}");
+			Logger.Log($"Added {player}. Total:{values.Count}; {string.Join("; ",values)}",Category.Connections);
 			//Adding kick timer for new players only
 			StartCoroutine(KickTimer(player));
 		}
+		CheckRcon();
 	}
 
 	private IEnumerator KickTimer(ConnectedPlayer player)
 	{
-		if ( IsConnWhitelisted( player ) || !Managers.instance.isForRelease )
+		if ( IsConnWhitelisted( player ) || !BuildPreferences.isForRelease )
 		{
-//			Debug.Log( "Ignoring kick timer for invalid connection" );
+//			Logger.Log( "Ignoring kick timer for invalid connection" );
 			yield break;
 		}
 		int tries = 5;
-		while ( !player.IsAuthenticated )
-		{			
-			if ( tries-- < 0 )
-			{
-				CustomNetworkManager.Kick( player, "Auth timed out" );
-				yield break;
-			}
-			yield return YieldHelper.Second;
-		}
-	}
+        while (!player.IsAuthenticated)
+        {
+            if (tries-- < 0)
+            {
+                CustomNetworkManager.Kick(player, "Auth timed out");
+                yield break;
+            }
+            yield return YieldHelper.Second;
+        }
+    }
 
 	public static bool IsConnWhitelisted( ConnectedPlayer player )
 	{
-		return player.Connection == null || 
+		return player.Connection == null ||
 		       player.Connection == ConnectedPlayer.Invalid.Connection ||
 		       !player.Connection.isConnected;
 	}
@@ -227,11 +227,12 @@ public class PlayerList : NetworkBehaviour
 	[Server]
 	private void TryRemove(ConnectedPlayer player)
 	{
-		Debug.Log($"Removed {player}");
+		Logger.Log($"Removed {player}",Category.Connections);
 		values.Remove(player);
 		AddPrevious( player );
 		NetworkServer.Destroy(player.GameObject);
 		UpdateConnectedPlayersMessage.Send();
+		CheckRcon();
 	}
 
 	[Server]
@@ -241,37 +242,37 @@ public class PlayerList : NetworkBehaviour
 	{
 		return !Get(connection).Equals(ConnectedPlayer.Invalid);
 	}
-	
+
 	[Server]
 	public bool ContainsName(string name)
 	{
 		return !Get(name).Equals(ConnectedPlayer.Invalid);
 	}
-	
+
 	[Server]
 	public bool ContainsGameObject(GameObject gameObject)
 	{
 		return !Get(gameObject).Equals(ConnectedPlayer.Invalid);
 	}
-	
+
 	[Server]
 	public ConnectedPlayer Get(NetworkConnection byConnection, bool lookupOld = false)
 	{
 		return getInternal(player => player.Connection == byConnection, lookupOld);
 	}
-	
+
 	[Server]
 	public ConnectedPlayer Get(string byName, bool lookupOld = false)
 	{
 		return getInternal(player => player.Name == byName, lookupOld);
 	}
-	
+
 	[Server]
 	public ConnectedPlayer Get(GameObject byGameObject, bool lookupOld = false)
 	{
 		return getInternal(player => player.GameObject == byGameObject, lookupOld);
-	}	
-	
+	}
+
 	[Server]
 	public ConnectedPlayer Get(ulong bySteamId, bool lookupOld = false)
 	{
@@ -293,7 +294,7 @@ public class PlayerList : NetworkBehaviour
 			{
 				if ( condition(oldValues[i]) )
 				{
-					Debug.Log( $"Returning old player {oldValues[i]}" );
+					Logger.Log( $"Returning old player {oldValues[i]}", Category.Connections);
 					return oldValues[i];
 				}
 			}
@@ -308,11 +309,18 @@ public class PlayerList : NetworkBehaviour
 		ConnectedPlayer connectedPlayer = Get(connection);
 		if ( connectedPlayer.Equals(ConnectedPlayer.Invalid) )
 		{
-			Debug.LogError($"Cannot remove by {connection}, not found");
+			Logger.LogError($"Cannot remove by {connection}, not found", Category.Connections);
 		}
 		else
 		{
 			TryRemove(connectedPlayer);
+		}
+	}
+
+	[Server]
+	private void CheckRcon(){
+		if(RconManager.Instance != null){
+			RconManager.UpdatePlayerListRcon();
 		}
 	}
 }

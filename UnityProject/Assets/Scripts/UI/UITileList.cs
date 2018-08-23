@@ -1,13 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using Light2D;
-using PlayGroup;
-using Tilemaps;
-using Tilemaps.Behaviours.Layers;
-using Tilemaps.Behaviours.Objects;
-using Tilemaps.Tiles;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -26,11 +18,12 @@ public class UITileList : MonoBehaviour
 		{
 			if (!uiTileList)
 			{
-				uiTileList = FindObjectOfType<UITileList>();
+				uiTileList = FindObjectOfType<UITileList>(); //bad practice
 			}
 
 			return uiTileList;
 		}
+		set { uiTileList = value; }
 	}
 
 	private void Awake()
@@ -184,7 +177,7 @@ public class UITileList : MonoBehaviour
 		}
 		Instance.listedObjects.Clear();
 		Instance.listedTile = null;
-		Instance.listedTilePosition = new Vector3(0f, 0f, -100f);
+		Instance.listedTilePosition = TransformState.HiddenPos;
 		UpdateItemPanelSize();
 	}
 
@@ -201,7 +194,7 @@ public class UITileList : MonoBehaviour
 	{
 		if (!Instance.listedObjects.Contains(tileListItemObject))
 		{
-			Debug.LogError("Attempted to remove tileListItem not on list");
+			Logger.LogError("Attempted to remove tileListItem not on list", Category.UI);
 			return;
 		}
 

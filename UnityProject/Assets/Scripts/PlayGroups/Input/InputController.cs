@@ -1,16 +1,10 @@
 using System.Collections.Generic;
 using System.Linq;
-using Cupboards;
-using PlayGroup;
-using Tilemaps.Behaviours.Objects;
-using Tilemaps.Tiles;
-using UI;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Tilemaps;
 
-namespace PlayGroups.Input
-{
+
 	public class InputController : MonoBehaviour
 	{
 		/// <summary>
@@ -112,7 +106,7 @@ namespace PlayGroups.Input
 				Vector3 position = Camera.main.ScreenToWorldPoint(UnityEngine.Input.mousePosition);
 				position.z = 0f;
 				currentSlot.Clear();
-				Debug.Log( $"Requesting throw from {currentSlot.eventName} to {position}" );
+//				Logger.Log( $"Requesting throw from {currentSlot.eventName} to {position}" );
 				PlayerManager.LocalPlayerScript.playerNetworkActions
 					.CmdRequestThrow( currentSlot.eventName, position, (int) UIManager.DamageZone );
 				//Disabling throw button
@@ -226,7 +220,7 @@ namespace PlayGroups.Input
 
 					float pixelsPerUnit = sprite.pixelsPerUnit;
 
-					float angle = -spriteRenderer.gameObject.transform.parent.localEulerAngles.z * Mathf.Deg2Rad;
+					float angle = -spriteRenderer.gameObject.transform.parent.eulerAngles.z * Mathf.Deg2Rad;
 
 					float sin = Mathf.Sin( angle );
 					float cos = Mathf.Cos( angle );
@@ -317,4 +311,3 @@ namespace PlayGroups.Input
 			playerSprites.ChangePlayerDirection(Orientation.From( dir ));
 		}
 	}
-}

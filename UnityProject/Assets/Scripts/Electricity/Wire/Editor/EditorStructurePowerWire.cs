@@ -1,9 +1,7 @@
-﻿using Sprites;
-using UnityEditor;
+﻿using UnityEditor;
 using UnityEngine;
 
-namespace Electricity
-{
+
 	/// <summary>
 	///     This StructurePowerWire editor script helps set the correct
 	///     wires when building maps
@@ -43,13 +41,15 @@ namespace Electricity
 				{
 					sTarget.SetDirection(sTarget.DirectionStart, sTarget.DirectionEnd);
 					showError = false;
+					PrefabUtility.RecordPrefabInstancePropertyModifications(sTarget);
+
 				}
 				catch
 				{
 					msgTime = 0f;
 					showError = true;
-					sTarget.DirectionStart = startCache;
-					sTarget.DirectionEnd = endCache;
+					//sTarget.DirectionStart = startCache;
+					//sTarget.DirectionEnd = endCache;
 				}
 			}
 
@@ -71,4 +71,3 @@ namespace Electricity
 				"SpriteRotate.cs", MessageType.Warning);
 		}
 	}
-}

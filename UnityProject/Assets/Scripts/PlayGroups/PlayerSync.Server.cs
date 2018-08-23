@@ -4,23 +4,21 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Networking;
 
-namespace PlayGroup
-{
+
 	public partial class PlayerSync
 	{
 		//Server-only fields, don't concern clients in any way
 
 		/// Current server state. Lerps towards target state, so its position can be non-integer in the process.
-		/// Updates to players, however, are only sent when it approaches target state's position, 
+		/// Updates to players, however, are only sent when it approaches target state's position,
 		/// therefore position is always sent as integer (at least in SendToAll()).
 		private PlayerState serverState;
 
-		/// Future/target server state. All future changes go here 
-		/// and are applied to serverState when their positions match up 
+		/// Future/target server state. All future changes go here
+		/// and are applied to serverState when their positions match up
 		private PlayerState serverTargetState;
 
 		private Queue<PlayerAction> serverPendingActions;
-		[SyncVar] [Obsolete] private PlayerState serverStateCache; //todo: phase it out, it actually concerns clients
 
 		/// Max size of serverside queue, client will be rolled back and punished if it overflows
 		private readonly int maxServerQueue = 10;
@@ -31,14 +29,15 @@ namespace PlayGroup
 		private int playerWarnings;
 
 		/// Last direction that player moved in. Currently works more like a true impulse, therefore is zero-able
+		[SyncVar]
 		private Vector2 serverLastDirection;
 
 		//TODO: Remove the space damage coroutine when atmos is implemented
 		private bool isApplyingSpaceDmg;
 
-		/// 
+		///
 		public bool IsInSpace => MatrixManager.IsFloatingAt(Vector3Int.RoundToInt(serverTargetState.WorldPosition));
-		
+
 		/// Whether player is considered to be floating on server
 		private bool consideredFloatingServer => serverState.Impulse != Vector2.zero;
 
@@ -52,7 +51,7 @@ namespace PlayGroup
 			InitServerState();
 		}
 //TODO: don't allow walking when stopped in vacuum
-		/// 
+		///
 		[Server]
 		private void InitServerState()
 		{
@@ -64,10 +63,15 @@ namespace PlayGroup
 				MatrixId = matrixAtPoint.Id,
 				WorldPosition = worldPos
 			};
-//			Debug.Log( $"{PlayerList.Instance.Get( gameObject ).Name}: InitServerState for {worldPos} found matrix {matrixAtPoint} resulting in\n{state}" );
+			Logger.LogTraceFormat( "{0}: InitServerState for {1} found matrix {2} resulting in\n{3}", Category.Movement,
+				PlayerList.Instance.Get( gameObject ).Name, worldPos, matrixAtPoint, state, Category.Movement );
 			serverState = state;
-			serverStateCache = state;
 			serverTargetState = state;
+
+			//Subbing to new matrix rotations
+			if ( matrixAtPoint.MatrixMove != null ) {
+				matrixAtPoint.MatrixMove.OnRotate.AddListener( OnRotation );
+			}
 		}
 
 		[Command(channel = 0)]
@@ -96,22 +100,18 @@ namespace PlayGroup
 				{
 					TortureChamber.Torture(playerScript, TortureSeverity.L);
 				}
-
-				return;
 			}
-
-			serverStateCache = serverState;
 		}
 
 		/// Push player in direction.
 		/// Impulse should be consumed after one tile if indoors,
-		/// and last indefinitely (until hit by obstacle) if you pushed someone into deep space 
+		/// and last indefinitely (until hit by obstacle) if you pushed someone into deep space
 		[Server]
 		public void Push(Vector2Int direction)
 		{
 			if (direction == Vector2Int.zero)
 			{
-				Debug.Log("Push with zero impulse??");
+				Logger.Log("Push with zero impulse??", Category.PushPull);
 				return;
 			}
 
@@ -123,7 +123,7 @@ namespace PlayGroup
 					Vector3Int.RoundToInt(serverState.Position + (Vector3) serverTargetState.Impulse);
 				if (matrix.IsPassableAt(pushGoal))
 				{
-					Debug.Log($"Server push to {pushGoal}");
+					Logger.Log($"Server push to {pushGoal}", Category.PushPull);
 					serverTargetState.Position = pushGoal;
 					serverTargetState.ImportantFlightUpdate = true;
 					serverTargetState.ResetClientQueue = true;
@@ -155,12 +155,11 @@ namespace PlayGroup
 			};
 			serverState = newState;
 			serverTargetState = newState;
-			serverStateCache = newState;
 			SyncMatrix();
 			NotifyPlayers();
 		}
 
-		///	When lerp is finished, inform players of new state  
+		///	When lerp is finished, inform players of new state
 		[Server]
 		private void TryNotifyPlayers()
 		{
@@ -174,7 +173,7 @@ namespace PlayGroup
 			}
 		}
 
-		/// Register player to matrix from serverState (ParentNetId is a SyncVar) 
+		/// Register player to matrix from serverState (ParentNetId is a SyncVar)
 		[Server]
 		private void SyncMatrix()
 		{
@@ -182,38 +181,38 @@ namespace PlayGroup
 		}
 
 		/// Send current serverState to just one player
+		/// <param name="recipient">whom to inform</param>
+		/// <param name="noLerp">(for init) tells client to do no lerping when changing pos this time</param>
 		[Server]
-		public void NotifyPlayer(GameObject recipient)
-		{
-			PlayerMoveMessage.Send(recipient, gameObject, serverState);
+		public void NotifyPlayer(GameObject recipient, bool noLerp = false) {
+			serverState.NoLerp = noLerp;
+			var msg = PlayerMoveMessage.Send(recipient, gameObject, serverState);
+			Logger.LogTraceFormat( "Sent {0}", Category.Movement, msg );
 		}
 
 		/// Send current serverState to all players
 		[Server]
-		public void NotifyPlayers()
+		public void NotifyPlayers(bool noLerp = false)
 		{
-			//Do not cache the position if the player is a ghost
-			//or else new players will sync the deadbody with the last pos
-			//of the ghost:
-			if (!playerMove.isGhost)
-			{
-				serverStateCache = serverState;
-			}
-
 			//Generally not sending mid-flight updates (unless there's a sudden change of course etc.)
 			if (!serverState.ImportantFlightUpdate && consideredFloatingServer)
 			{
 				return;
 			}
-
-			PlayerMoveMessage.SendToAll(gameObject, serverState);
-			ClearStateFlags();
+			serverState.NoLerp = noLerp;
+			var msg = PlayerMoveMessage.SendToAll(gameObject, serverState);
+			Logger.LogTraceFormat( "SentToAll {0}", Category.Movement, msg );
+			//Clearing state flags
+			serverTargetState.ImportantFlightUpdate = false;
+			serverTargetState.ResetClientQueue = false;
+			serverState.ImportantFlightUpdate = false;
+			serverState.ImportantFlightUpdate = false;
 		}
 
 		/// Clears server pending actions queue
 		private void ClearQueueServer()
 		{
-//			Debug.Log("Server queue wiped!");
+//			Logger.Log("Server queue wiped!");
 			if (serverPendingActions != null && serverPendingActions.Count > 0)
 			{
 				serverPendingActions.Clear();
@@ -268,7 +267,7 @@ namespace PlayGroup
 			{
 				if (consideredFloatingServer)
 				{
-					Debug.LogWarning("Server ignored move while player is floating");
+					Logger.LogWarning("Server ignored move while player is floating", Category.Movement);
 					serverPendingActions.Dequeue();
 					return;
 				}
@@ -278,17 +277,17 @@ namespace PlayGroup
 				serverTargetState = nextState;
 				//In case positions already match
 				TryNotifyPlayers();
-//				Debug.Log($"Server Updated target {serverTargetState}. {serverPendingActions.Count} pending");
+//				Logger.Log($"Server Updated target {serverTargetState}. {serverPendingActions.Count} pending");
 			}
 			else
 			{
-				Debug.LogWarning(
-					$"Pointless move {serverTargetState}+{nextAction.keyCodes[0]} Rolling back to {serverState}");
+				Logger.LogWarning(
+					$"Pointless move {serverTargetState}+{nextAction.keyCodes[0]} Rolling back to {serverState}",Category.Movement);
 				RollbackPosition();
 			}
 		}
 
-		/// NextState that also subscribes player to matrix rotations 
+		/// NextState that also subscribes player to matrix rotations
 		[Server]
 		private PlayerState NextStateServer(PlayerState state, PlayerAction action)
 		{
@@ -302,20 +301,20 @@ namespace PlayGroup
 
 			//todo: subscribe to current matrix rotations on spawn
 			var newMatrix = MatrixManager.Get(nextState.MatrixId);
-			Debug.Log($"Matrix will change to {newMatrix}");
+			Logger.Log($"Matrix will change to {newMatrix}",Category.Movement);
 			if (newMatrix.MatrixMove)
 			{
 				//Subbing to new matrix rotations
-				newMatrix.MatrixMove.onRotation += OnRotation;
-//				Debug.Log( $"Registered rotation listener to {newMatrix.MatrixMove}" );
+				newMatrix.MatrixMove.OnRotate.AddListener( OnRotation );
+//				Logger.Log( $"Registered rotation listener to {newMatrix.MatrixMove}" );
 			}
 
 			//Unsubbing from old matrix rotations
 			MatrixMove oldMatrixMove = MatrixManager.Get(matrix).MatrixMove;
 			if (oldMatrixMove)
 			{
-//				Debug.Log( $"Unregistered rotation listener from {oldMatrixMove}" );
-				oldMatrixMove.onRotation -= OnRotation;
+//				Logger.Log( $"Unregistered rotation listener from {oldMatrixMove}" );
+				oldMatrixMove.OnRotate.RemoveListener( OnRotation );
 			}
 
 			return nextState;
@@ -334,16 +333,16 @@ namespace PlayGroup
 		{
 			if (!ServerPositionsMatch)
 			{
-				//Lerp on server if it's worth lerping 
-				//and inform players if serverState reached targetState afterwards 
+				//Lerp on server if it's worth lerping
+				//and inform players if serverState reached targetState afterwards
 				serverState.WorldPosition =
 					Vector3.MoveTowards(serverState.WorldPosition, serverTargetState.WorldPosition, playerMove.speed * Time.deltaTime);
 				//failsafe
 				var distance = Vector3.Distance(serverState.WorldPosition, serverTargetState.WorldPosition);
 				if (distance > 1.5)
 				{
-					Debug.LogWarning($"Dist {distance} > 1:{serverState}\n" +
-					                 $"Target    :{serverTargetState}");
+					Logger.LogWarning($"Dist {distance} > 1:{serverState}\n" +
+						$"Target    :{serverTargetState}",Category.Movement);
 					serverState.WorldPosition = serverTargetState.WorldPosition;
 				}
 
@@ -355,7 +354,7 @@ namespace PlayGroup
 			{
 				if (serverTargetState.Impulse == Vector2.zero && serverLastDirection != Vector2.zero)
 				{
-					//server initiated space dive. 						
+					//server initiated space dive.
 					serverTargetState.Impulse = serverLastDirection;
 					serverTargetState.ImportantFlightUpdate = true;
 					serverTargetState.ResetClientQueue = true;
@@ -404,8 +403,8 @@ namespace PlayGroup
 			}
 		}
 
-		// TODO: Remove this when atmos is implemented 
-		// This prevents players drifting into space indefinitely 
+		// TODO: Remove this when atmos is implemented
+		// This prevents players drifting into space indefinitely
 		private IEnumerator ApplyTempSpaceDamage()
 		{
 			yield return new WaitForSeconds(1f);
@@ -413,4 +412,3 @@ namespace PlayGroup
 			isApplyingSpaceDmg = false;
 		}
 	}
-}

@@ -1,17 +1,10 @@
 ﻿using System.Collections;
-using System.Runtime.Serialization.Formatters;
-using Items;
-using PlayGroup;
-using UI;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Networking;
-using UnityEngine.SceneManagement;
-using Equipment;
 
-namespace Weapons
-{
-	/// <summary>
+
+/// <summary>
 	///     Generic weapon types
 	/// </summary>
 	public enum WeaponType
@@ -102,6 +95,8 @@ namespace Weapons
 		/// </summary>
 		public WeaponType WeaponType;
 
+		private GameObject casingPrefab;
+
 		private void Start()
 		{
 			InAutomaticAction = false;
@@ -156,7 +151,7 @@ namespace Weapons
 				if ((currentHandItem != null) && (otherHandItem != null))
 				{
 					if (CurrentMagazine == null)
-					{  
+					{
 						//RELOAD
 						if (currentHandItem.GetComponent<MagazineBehaviour>() && otherHandItem.GetComponent<Weapon>())
 						{
@@ -166,12 +161,12 @@ namespace Weapons
 							{
 								hand = UIManager.Hands.CurrentSlot.eventName;
 								Reload(currentHandItem, hand, true);
-								
+
 							}
 
 							if (AmmoType != ammoType)
 							{
-								UIManager.Chat.AddChatEvent(new ChatEvent("You try to load the wrong ammo into your weapon", ChatChannel.Examine));
+								ChatRelay.Instance.AddToChatLogClient( "You try to load the wrong ammo into your weapon", ChatChannel.Examine );
 							}
 						}
 
@@ -186,11 +181,11 @@ namespace Weapons
 							}
 							if (AmmoType != ammoType)
 							{
-								UIManager.Chat.AddChatEvent(new ChatEvent("You try to load the wrong ammo into your weapon", ChatChannel.Examine));
+								ChatRelay.Instance.AddToChatLogClient( "You try to load the wrong ammo into your weapon", ChatChannel.Examine );
 							}
 						}
-	
-						
+
+
 					}
 					else
 					{
@@ -203,12 +198,12 @@ namespace Weapons
 
 						else if (currentHandItem.GetComponent<Weapon>() && otherHandItem.GetComponent<MagazineBehaviour>())
 						{
-							UIManager.Chat.AddChatEvent(new ChatEvent("You weapon is already loaded, you cant fit more Magazines in it, silly!", ChatChannel.Examine));
+							ChatRelay.Instance.AddToChatLogClient("You weapon is already loaded, you cant fit more Magazines in it, silly!", ChatChannel.Examine);
 
 						}
 						else if (otherHandItem.GetComponent<Weapon>() && currentHandItem.GetComponent<MagazineBehaviour>())
 						{
-							UIManager.Chat.AddChatEvent(new ChatEvent("You weapon is already loaded, you cant fit more Magazines in it, silly!", ChatChannel.Examine));
+							ChatRelay.Instance.AddToChatLogClient("You weapon is already loaded, you cant fit more Magazines in it, silly!", ChatChannel.Examine);
 
 						}
 					}
@@ -247,9 +242,9 @@ namespace Weapons
 		public override void OnStartServer()
 		{
 			GameObject ammoPrefab = Resources.Load("Rifles/Magazine_" + AmmoType)  as GameObject;
-			
+
 			GameObject m = ItemFactory.SpawnItem(ammoPrefab, transform.parent);
-			
+
 			StartCoroutine(SetMagazineOnStart(m));
 
 			base.OnStartServer();
@@ -331,12 +326,17 @@ namespace Weapons
 					if (WeaponType == WeaponType.SemiAutomatic || WeaponType == WeaponType.FullyAutomatic)
 					{
 						Vector2 dir = (Camera.main.ScreenToWorldPoint(Input.mousePosition) - PlayerManager.LocalPlayer.transform.position).normalized;
-						PlayerScript lps = PlayerManager.LocalPlayerScript;
-						lps.weaponNetworkActions.CmdShootBullet(gameObject, CurrentMagazine.gameObject, dir, Projectile.name,
-						                                        UIManager.DamageZone /*PlayerScript.SelectedDamageZone*/, suicideShot);
+
+						RequestShootMessage.Send(gameObject, dir, Projectile.name, UIManager.DamageZone, suicideShot, PlayerManager.LocalPlayer);
+
+						if (!isServer) {
+							//Prediction (client bullets don't do any damage)
+							Shoot(PlayerManager.LocalPlayer, dir, Projectile.name, UIManager.DamageZone, suicideShot);
+						}
+
 						if (WeaponType == WeaponType.FullyAutomatic)
 						{
-							lps.inputController.OnMouseDownDir(dir);
+							PlayerManager.LocalPlayerScript.inputController.OnMouseDownDir(dir);
 						}
 					}
 
@@ -348,13 +348,59 @@ namespace Weapons
 			}
 		}
 
+		[Server]
+		public void ServerShoot(GameObject shotBy, Vector2 direction, string bulletName,
+		                        BodyPartType damageZone, bool isSuicideShot){
+			PlayerMove shooter = shotBy.GetComponent<PlayerMove>();
+			if(!shooter.allowInput || shooter.isGhost){
+				return;
+			}
+
+			Shoot(shotBy, direction, bulletName, damageZone, isSuicideShot);
+
+			//This is used to determine where bullet shot should head towards on client
+			Ray2D ray = new Ray2D(shotBy.transform.position, direction);
+			ShootMessage.SendToAll(gameObject, ray.GetPoint(30f), bulletName, damageZone, shotBy);
+
+			if (SpawnsCaseing) {
+				if(casingPrefab == null){
+					casingPrefab = Resources.Load("BulletCasing") as GameObject;
+				}
+				ItemFactory.SpawnItem(casingPrefab, shotBy.transform.position, shotBy.transform.parent);
+			}
+		}
+
+		//This is only for the shooters client and the server. Rest is done via msg
+		private void Shoot(GameObject shooter, Vector2 direction, string bulletName,
+								BodyPartType damageZone, bool isSuicideShot){
+			CurrentMagazine.ammoRemains--;
+			//get the bullet prefab being shot
+			GameObject bullet = PoolManager.Instance.PoolClientInstantiate(Resources.Load(bulletName) as GameObject,
+				shooter.transform.position, Quaternion.identity);
+			float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+
+			//if we have recoil variance add it, and get the new attack angle
+			if (CurrentRecoilVariance > 0) {
+				direction = GetRecoilOffset(angle);
+			}
+
+			BulletBehaviour b = bullet.GetComponent<BulletBehaviour>();
+			b.isSuicide = isSuicideShot;
+			b.Shoot(direction, angle, shooter, damageZone);
+
+			//add additional recoil after shooting for the next round
+			AppendRecoil(angle);
+
+			SoundManager.PlayAtPosition(FireingSound, shooter.transform.position);
+		}
+
 		#endregion
 
 		#region Weapon Loading and Unloading
 
 		private void Reload(GameObject m, string hand, bool current)
 		{
-			Debug.Log("Reloading");
+			Logger.LogTrace("Reloading", Category.Firearms);
 			PlayerManager.LocalPlayerScript.weaponNetworkActions.CmdLoadMagazine(gameObject, m, hand);
 			if (current)
 			{
@@ -364,14 +410,14 @@ namespace Weapons
 			{
 				UIManager.Hands.OtherSlot.Clear();
 			}
-			
+
 		}
 
 		//atm unload with shortcut 'e'
 		//TODO dev right click unloading so it goes into the opposite hand if it is selected
 		private void ManualUnload(MagazineBehaviour m)
 		{
-			Debug.Log("Unloading");
+			Logger.LogTrace("Unloading", Category.Firearms);
 			if (m != null)
 			{
 				PlayerManager.LocalPlayerScript.playerNetworkActions.CmdDropItemNotInUISlot(m.gameObject);
@@ -406,7 +452,7 @@ namespace Weapons
 					PlayerManager.LocalPlayerScript.playerNetworkActions.DisposeOfChildItem(CurrentMagazine.gameObject);
 				}
 			}
-			Debug.Log("Dropped Weapon");
+			Logger.LogTrace("Dropped Weapon", Category.Firearms);
 		}
 
 		public void LoadUnloadAmmo(NetworkInstanceId magazineID)
@@ -424,7 +470,7 @@ namespace Weapons
 				{
 					MagazineBehaviour magazineBehavior = magazine.GetComponent<MagazineBehaviour>();
 					CurrentMagazine = magazineBehavior;
-					//					Debug.LogFormat("MagazineBehaviour found ok: {0}", magazineID);
+					Logger.LogTraceFormat("MagazineBehaviour found ok: {0}", Category.Firearms, magazineID);
 				}
 			}
 		}
@@ -468,5 +514,29 @@ namespace Weapons
 		}
 
 		#endregion
+
+		#region Weapon Network Supporting Methods
+
+		private Vector2 GetRecoilOffset(float angle)
+		{
+			float angleVariance = Random.Range(-CurrentRecoilVariance, CurrentRecoilVariance);
+			float newAngle = angle * Mathf.Deg2Rad + angleVariance;
+			Vector2 vec2 = new Vector2(Mathf.Cos(newAngle), Mathf.Sin(newAngle)).normalized;
+			return vec2;
+		}
+
+		private void AppendRecoil(float angle)
+		{
+			if (CurrentRecoilVariance < MaxRecoilVariance) {
+				//get a random recoil
+				float randRecoil = Random.Range(CurrentRecoilVariance, MaxRecoilVariance);
+				CurrentRecoilVariance += randRecoil;
+				//make sure the recoil is not too high
+				if (CurrentRecoilVariance > MaxRecoilVariance) {
+					CurrentRecoilVariance = MaxRecoilVariance;
+				}
+			}
+		}
+
+		#endregion
 	}
-}

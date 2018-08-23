@@ -1,10 +1,7 @@
-﻿using PlayGroup;
-using UnityEngine;
-using UI;
+﻿using UnityEngine;
 
-namespace Cupboards
-{
-	//TODO make into a more generic component to handle coffins, disposal bins etc. Will
+
+//TODO make into a more generic component to handle coffins, disposal bins etc. Will
 	//require a rename also
 	/// <summary>
 	///     A temporary component added to the players localplayer
@@ -31,8 +28,8 @@ namespace Cupboards
 
 			if (!closetControl)
 			{
-				//this is not a closet. Could be a coffin or disposals
-				Debug.LogWarning("No closet found for ClosetPlayerHandler!" + " maybe it's time to update this component? (see the todo's)");
+				//this is not a closet. Could be a coffin or disposals 
+				Logger.LogWarning("No closet found for ClosetPlayerHandler!" + " maybe it's time to update this component? (see the todo's)", Category.Containers);
 				Destroy(this);
 			}
 			else
@@ -43,8 +40,7 @@ namespace Cupboards
 
 		private void Update()
 		{
-			if (PlayerManager.LocalPlayerScript.playerNetworkActions.isGhost ||
-			    UIManager.Instance.chatControl.isChatFocus)
+			if (PlayerManager.LocalPlayerScript.playerNetworkActions.isGhost || UIManager.IsInputFocus)
 			{
 				return;
 			}			
@@ -65,7 +61,7 @@ namespace Cupboards
 			}
 		}
 
-		private bool CheckForDirectionalKeyPress()
+		private bool CheckForDirectionalKeyPress() //fixme: OW
 		{
 			if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.A) ||
 			    Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.DownArrow) ||
@@ -76,4 +72,3 @@ namespace Cupboards
 			return false;
 		}
 	}
-}

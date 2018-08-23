@@ -1,52 +1,49 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using Tilemaps.Behaviours.Layers;
-using Tilemaps.Behaviours.Objects;
-using Tilemaps.Tiles;
-using Tilemaps.Utils;
 using UnityEngine;
-using System;
 
-namespace Tilemaps
-{
-	public class Matrix : MonoBehaviour
+
+public class Matrix : MonoBehaviour
 	{
 		private MetaTileMap metaTileMap;
 		private TileList objects;
+		private TileList players;
 		private Vector3Int initialOffset;
 		public Vector3Int InitialOffset => initialOffset;
 
 		private MetaDataLayer metaDataLayer;
-		
+
 		private void Start()
 		{
 			metaDataLayer = GetComponentInChildren<MetaDataLayer>(true);
 			metaTileMap = GetComponent<MetaTileMap>();
+
 			try
 			{
-				objects = ((ObjectLayer) metaTileMap.Layers[LayerType.Objects]).Objects;
+				objects = ((ObjectLayer)metaTileMap.Layers[LayerType.Objects]).Objects;
 			}
 			catch
 			{
-				Debug.LogError("CAST ERROR: Make sure everything is in its proper layer type.");
+				Logger.LogError("CAST ERROR: Make sure everything is in its proper layer type.", Category.Matrix);
 			}
 		}
 
-		private void Awake() {
-			initialOffset = Vector3Int.CeilToInt( gameObject.transform.position );
+		private void Awake()
+		{
+			initialOffset = Vector3Int.CeilToInt(gameObject.transform.position);
 		}
 
 		public bool IsPassableAt(Vector3Int origin, Vector3Int position)
 		{
 			return metaTileMap.IsPassableAt(origin, position);
 		}
-		
+
 		//TODO:  This should be removed, due to windows mucking things up, and replaced with origin and position
 		public bool IsPassableAt(Vector3Int position)
 		{
 			return metaTileMap.IsPassableAt(position);
 		}
-		
+
 		//TODO:  This should also be removed, due to windows mucking things up, and replaced with origin and position
 		public bool IsAtmosPassableAt(Vector3Int position)
 		{
@@ -73,6 +70,7 @@ namespace Tilemaps
 					return false;
 				}
 			}
+
 			return true;
 		}
 
@@ -94,8 +92,31 @@ namespace Tilemaps
 		public bool ContainsAt(Vector3Int position, GameObject gameObject)
 		{
 			RegisterTile registerTile = gameObject.GetComponent<RegisterTile>();
+			if (!registerTile)
+			{
+				return false;
+			}
 
-			return registerTile && objects.Get(position).Contains(registerTile);
+			// Check if tile contains a player
+			if (registerTile.ObjectType == ObjectType.Player)
+			{
+				var playersAtPosition = objects.Get<RegisterPlayer>(position);
+
+				if (playersAtPosition.Count == 0 || playersAtPosition.Contains(registerTile))
+				{
+					return false;
+				}
+
+				// Check if the player is passable (corpse)
+				return playersAtPosition.First().IsBlocking;
+			}
+
+			// Otherwise check for blocking objects
+			return objects.Get<RegisterTile>(position).Contains(registerTile);
+		}
+
+		public IEnumerable<IElectricityIO> GetElectricalConnections(Vector3Int position)
+		{
+			return objects.Get(position).Select(x => x.GetComponent<IElectricityIO>()).Where(x => x != null);
 		}
 	}
-}
