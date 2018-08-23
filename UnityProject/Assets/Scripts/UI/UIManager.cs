@@ -17,9 +17,7 @@ using System.Collections.Generic;
 		public PlayerListUI playerListUIControl;
 		public Text toolTip;
 		public ControlWalkRun walkRunControl;
-<<<<<<< HEAD
         public GameObject contextMenuPrefab;
-=======
 		public Toggle ttsToggle;
 
 		///Global flag for focused input field. Movement keystrokes are ignored if true.
@@ -37,8 +35,6 @@ using System.Collections.Generic;
 		}
 
 		public bool isInputFocus;
-
->>>>>>> upstream/develop
 
 
         public static UIManager Instance
