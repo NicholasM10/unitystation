@@ -9265,11 +9265,7 @@ MonoBehaviour:
   m_HandleRect: {fileID: 224082241428792102}
   m_Direction: 2
   m_Value: 0
-<<<<<<< HEAD
-  m_Size: 0.99999994
-=======
   m_Size: 0
->>>>>>> upstream/develop
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -9667,8 +9663,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 114986867525342648}
   m_HandleRect: {fileID: 224599716051025124}
   m_Direction: 2
-  m_Value: 0.9999995
-  m_Size: 0.41528562
+  m_Value: 0.9999997
+  m_Size: 0.41528565
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -16782,6 +16778,8 @@ MonoBehaviour:
   playerListUIControl: {fileID: 114827065861498824}
   toolTip: {fileID: 114819375966709390}
   walkRunControl: {fileID: 114928448129669528}
+  contextMenuPrefab: {fileID: 1074617919503396, guid: df4d06bd9e76e1b4f8d8a76f5cdc84e9,
+    type: 2}
   ttsToggle: {fileID: 114913463177449856}
   isInputFocus: 0
 --- !u!114 &114897793867991922
@@ -16822,46 +16820,14 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 114991812042981714}
   m_HandleRect: {fileID: 224789847387135018}
   m_Direction: 2
-<<<<<<< HEAD
-  m_Value: 0
-  m_Size: 0.51204014
-=======
   m_Value: 1
   m_Size: 0.48763922
->>>>>>> upstream/develop
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
       m_Calls: []
     m_TypeName: UnityEngine.UI.Scrollbar+ScrollEvent, UnityEngine.UI, Version=1.0.0.0,
       Culture=neutral, PublicKeyToken=null
-<<<<<<< HEAD
---- !u!114 &114897689305174086
-MonoBehaviour:
-  m_ObjectHideFlags: 1
-  m_PrefabParentObject: {fileID: 0}
-  m_PrefabInternal: {fileID: 100100000}
-  m_GameObject: {fileID: 1241466016374566}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f4921d535b014209820ae966644206ab, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  actionControl: {fileID: 114440094268174718}
-  chatControl: {fileID: 114011731023853376}
-  displayControl: {fileID: 114735544628521044}
-  displayManager: {fileID: 114421896026623462}
-  hands: {fileID: 114512505746380040}
-  intentControl: {fileID: 114996552581981384}
-  inventorySlotCache: {fileID: 114173723418728806}
-  playerHealthUI: {fileID: 114329156370059736}
-  playerListUIControl: {fileID: 114827065861498824}
-  toolTip: {fileID: 114819375966709390}
-  walkRunControl: {fileID: 114928448129669528}
-  contextMenuPrefab: {fileID: 1074617919503396, guid: df4d06bd9e76e1b4f8d8a76f5cdc84e9,
-    type: 2}
-=======
->>>>>>> upstream/develop
 --- !u!114 &114902798441274010
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -20927,8 +20893,8 @@ RectTransform:
   m_Father: {fileID: 224982044586477944}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0.58471406}
-  m_AnchorMax: {x: 1, y: 0.9999997}
+  m_AnchorMin: {x: 0, y: 0.5847141}
+  m_AnchorMax: {x: 1, y: 0.99999976}
   m_AnchoredPosition: {x: 0, y: -0.000030517578}
   m_SizeDelta: {x: 20, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -21148,11 +21114,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-<<<<<<< HEAD
-  m_AnchoredPosition: {x: 0, y: 0.000009316034}
-=======
   m_AnchoredPosition: {x: 0, y: 0.000045776367}
->>>>>>> upstream/develop
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!224 &224653293278829958
@@ -22151,7 +22113,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 6.998413, y: 10.023987}
+  m_AnchoredPosition: {x: 7, y: 10.023987}
   m_SizeDelta: {x: 297.59, y: 152.5}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!224 &224961241877571984
