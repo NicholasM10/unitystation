@@ -2,7 +2,12 @@
 
 public class BodyPartBehaviour : MonoBehaviour
 {
-	private int _damage;
+	//Different types of damages for medical.
+	private int bruteDamage;
+	private int burnDamage;
+	private int toxinDamage;
+	private int suffocationDamage;
+
 	public Sprite GrayDamageMonitorIcon;
 
 	public Sprite GreenDamageMonitorIcon;
@@ -17,18 +22,96 @@ public class BodyPartBehaviour : MonoBehaviour
 
 	public DamageSeverity Severity { get; private set; }
 
+	//Apply damages from here.
 	public virtual void ReceiveDamage(DamageType damageType, int damage)
 	{
-		UpdateDamage(damage);
-		Logger.LogTraceFormat("{0} received {1} {2} damage. Total {3}/{4}, limb condition is {5}", Category.Health, Type, damage, damageType, _damage, MaxDamage, Severity);
+		UpdateDamage(damage, damageType);
+		Logger.LogTraceFormat("{0} received {1} {2} damage. Total {3}/{4}, limb condition is {5}", Category.Health, Type, damage, damageType, damage, MaxDamage, Severity);
 	}
 
-	private void UpdateDamage(int damage)
+	private void UpdateDamage(int damage, DamageType type)
 	{
-		_damage += damage;
-		if (_damage > MaxDamage)
+		switch (type)
 		{
-			_damage = MaxDamage;
+			case DamageType.BRUTE:
+				bruteDamage += damage;
+
+				if (damage > MaxDamage)
+				{
+					bruteDamage = MaxDamage;
+				}
+				break;
+
+			case DamageType.BURN:
+				burnDamage += damage;
+
+				if (damage > MaxDamage)
+				{
+					burnDamage = MaxDamage;
+				}
+				break;
+
+			case DamageType.TOX:
+				toxinDamage += damage;
+
+				if (damage > MaxDamage)
+				{
+					toxinDamage = MaxDamage;
+				}
+				break;
+
+			case DamageType.OXY:
+				suffocationDamage += damage;
+
+				if (damage > MaxDamage)
+				{
+					suffocationDamage = MaxDamage;
+				}
+				break;
+		}
+		UpdateSeverity();
+	}
+
+	//Restore/heal damage from here
+	public virtual void HealDamage(int damage, DamageType type)
+	{
+		switch (type)
+		{
+			case DamageType.BRUTE:
+				bruteDamage -= damage;
+
+				if (bruteDamage < 0)
+				{
+					bruteDamage = 0;
+				}
+				break;
+
+			case DamageType.BURN:
+				burnDamage -= damage;
+
+				if (burnDamage < 0)
+				{
+					burnDamage = 0;
+				}
+				break;
+
+			case DamageType.TOX:
+				toxinDamage -= damage;
+
+				if (toxinDamage < 0)
+				{
+					toxinDamage = 0;
+				}
+				break;
+
+			case DamageType.OXY:
+				suffocationDamage -= damage;
+
+				if (suffocationDamage < 0)
+				{
+					suffocationDamage = 0;
+				}
+				break;
 		}
 		UpdateSeverity();
 	}
@@ -51,7 +134,9 @@ public class BodyPartBehaviour : MonoBehaviour
 
 	private void UpdateSeverity()
 	{
-		float severity = (float) _damage / MaxDamage;
+		int damage = CountTotalDamage(); //Gets total damage from all types to determine severity later
+
+		float severity = (float) damage / MaxDamage;
 		if (severity >= 0.2 && severity < 0.4)
 		{
 			Severity = DamageSeverity.Moderate;
@@ -74,7 +159,16 @@ public class BodyPartBehaviour : MonoBehaviour
 
 	public virtual void RestoreDamage()
 	{
-		_damage = 0;
+		bruteDamage = 0;
+		burnDamage = 0;
+		toxinDamage = 0;
+		bruteDamage = 0;
+
 		UpdateSeverity();
+	}
+
+	private int CountTotalDamage()
+	{
+		return bruteDamage + burnDamage + toxinDamage + suffocationDamage;
 	}
 }

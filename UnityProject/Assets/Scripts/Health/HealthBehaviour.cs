@@ -40,7 +40,8 @@ public abstract class HealthBehaviour : NetworkBehaviour
 			Logger.LogWarning($"Initial health ({initialHealth}) set to zero/below zero!", Category.Health);
 			initialHealth = 1;
 		}
-
+		
+		//Reset health value and damage types values.
 		Health = initialHealth;
 	}
 
@@ -52,18 +53,6 @@ public abstract class HealthBehaviour : NetworkBehaviour
 			Health = newValue;
 			CheckDeadCritStatus();
 		}
-	}
-
-	///fixme/todo: to be replaced by net messages, crappy and unsecure placeholder
-	[ClientRpc]
-	public void RpcApplyDamage(GameObject damagedBy, int damage,
-		DamageType damageType, BodyPartType bodyPartAim)
-	{
-		if (isServer || !isNotPlayer || IsDead)
-		{
-			return;
-		}
-		ApplyDamage(damagedBy, damage, damageType, bodyPartAim);
 	}
 
 	public void ApplyDamage(GameObject damagedBy, int damage,
@@ -85,6 +74,7 @@ public abstract class HealthBehaviour : NetworkBehaviour
 	{
 		LastDamageType = damageType;
 		LastDamagedBy = damagedBy;
+
 		return damage;
 	}
 

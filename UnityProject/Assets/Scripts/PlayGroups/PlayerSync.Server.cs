@@ -617,8 +617,7 @@ public partial class PlayerSync
 	[Server]
 	private void CheckSpaceDamage()
 	{
-		if (MatrixManager.IsSpaceAt(Vector3Int.RoundToInt(serverState.WorldPosition))
-			&& !healthBehaviorScript.IsDead && !isApplyingSpaceDmg)
+		if ( AtSpace() && !healthBehaviorScript.IsDead && !isApplyingSpaceDmg)
 		{
 			// Hurting people in space even if they are next to the wall
 			if (!IsEvaCompatible())
@@ -626,6 +625,28 @@ public partial class PlayerSync
 				StartCoroutine(ApplyTempSpaceDamage());
 				isApplyingSpaceDmg = true;
 			}
+		}
+	}
+
+	private bool AtSpace() //Checks if player is at space, and if it is, enables oxygen alert if suit is not present.
+	{
+		if (MatrixManager.IsSpaceAt(Vector3Int.RoundToInt(serverState.WorldPosition)))
+		{
+			if(!IsEvaCompatible())
+			{
+				UIManager.Instance.oxygenAlertImg.enabled = true;
+			}
+
+			return true;
+		}
+		else
+		{
+			if (UIManager.Instance.oxygenAlertImg != null)
+			{
+				UIManager.Instance.oxygenAlertImg.enabled = false;
+			}
+
+			return false;
 		}
 	}
 
