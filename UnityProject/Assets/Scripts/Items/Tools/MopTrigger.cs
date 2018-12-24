@@ -15,13 +15,25 @@ public class MopTrigger : PickUpTrigger
             return base.Interact (originator, position, hand);
         }
         var targetWorldPos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        if (canBeUsed && PlayerManager.PlayerScript.IsInReach(targetWorldPos))
+        if (/*canBeUsed && */PlayerManager.PlayerScript.IsInReach(targetWorldPos))
         {
-            //TODO INSERT CLEANING FUNCTION
-        }
+			//TODO INSERT CLEANING FUNCTION
+			//BloodSplat[] blood = MatrixManager.GetAt<BloodSplat>(targetWorldPos.CutToInt());
+			if(blood != null)
+			{
+				//ReturnBloodToPool(blood);
+			}
+
+		}
 
         return base.Interact (originator, position, hand);
     }
+
+	[Server]
+	public void ReturnBloodToPool(BloodSplat blood)
+	{
+		PoolManager.Instance.PoolNetworkDestroy(blood.gameObject);
+	}
 
     //Broadcast from EquipmentPool.cs **ServerSide**
     public void OnAddToPool ()
