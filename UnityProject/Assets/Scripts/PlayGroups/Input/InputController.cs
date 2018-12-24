@@ -4,6 +4,9 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Tilemaps;
 
+/// <summary>
+/// Main entry point for handling all input events
+/// </summary>
 public class InputController : MonoBehaviour
 {
 	/// <summary>
@@ -24,6 +27,9 @@ public class InputController : MonoBehaviour
 	private PlayerSprites playerSprites;
 
 	public static readonly Vector3 sz = new Vector3(0.02f, 0.02f, 0.02f);
+
+	private Vector3 MousePosition => Camera.main.ScreenToWorldPoint(Input.mousePosition);
+
 	private void OnDrawGizmos()
 	{
 		foreach (var info in LastTouchedTile)
@@ -61,6 +67,41 @@ public class InputController : MonoBehaviour
 				}
 			}
 		}
+		else if (Input.GetMouseButton(0))
+		{
+			//mouse being held down / dragged
+			CheckDrag();
+		}
+		else
+		{
+			CheckHover();
+		}
+	}
+	private Renderer lastHoveredThing;
+
+	private void CheckHover()
+	{
+		Renderer hitRenderer;
+		if (RayHit(false, out hitRenderer))
+		{
+			if (!hitRenderer)
+			{
+				return;
+			}
+
+			if (lastHoveredThing != hitRenderer)
+			{
+				if (lastHoveredThing)
+				{
+					lastHoveredThing.transform.SendMessageUpwards("OnHoverEnd", SendMessageOptions.DontRequireReceiver);
+				}
+				hitRenderer.transform.SendMessageUpwards("OnHoverStart", SendMessageOptions.DontRequireReceiver);
+
+				lastHoveredThing = hitRenderer;
+			}
+
+			hitRenderer.transform.SendMessageUpwards("OnHover", SendMessageOptions.DontRequireReceiver);
+		}
 	}
 
 	private void CheckHandSwitch()
@@ -70,25 +111,51 @@ public class InputController : MonoBehaviour
 
 	private void CheckClick()
 	{
-		if (!UnityEngine.Input.GetKey(KeyCode.LeftControl) && !UnityEngine.Input.GetKey(KeyCode.LeftAlt))
+		bool ctrlClick = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.LeftCommand) ||
+						 Input.GetKey(KeyCode.RightControl) || Input.GetKey(KeyCode.RightCommand);
+		if (!ctrlClick)
 		{
 			//change the facingDirection of player on click
 			ChangeDirection();
 
 			//if we found nothing at all to click on try to use whats in our hands (might be shooting at someone in space)
-			if (!RayHit() && !EventSystem.current.IsPointerOverGameObject())
+			if (!RayHitInteract(false) && !EventSystem.current.IsPointerOverGameObject())
 			{
-				InteractHands();
+				InteractHands(false);
 			}
+		}
+		else
+		{
+			Renderer hitRenderer;
+			if (RayHit(false, out hitRenderer))
+			{
+				if (!hitRenderer)
+				{
+					return;
+				}
+				hitRenderer.transform.SendMessageUpwards("OnCtrlClick", SendMessageOptions.DontRequireReceiver);
+			}
+		}
+	}
+
+	/// <summary>
+	/// Handles events that should happen while mouse is being held down (but not when it is initially clicked down)
+	/// </summary>
+	private void CheckDrag()
+	{
+		//if we found nothing at all to click on try to use whats in our hands (might be shooting at someone in space)
+		if (!RayHitInteract(true) && !EventSystem.current.IsPointerOverGameObject())
+		{
+			InteractHands(true);
 		}
 	}
 
 	private bool CheckAltClick()
 	{
-		if (UnityEngine.Input.GetKey(KeyCode.LeftAlt) || UnityEngine.Input.GetKey(KeyCode.RightAlt))
+		if (Input.GetKey(KeyCode.LeftAlt) || Input.GetKey(KeyCode.RightAlt))
 		{
-			//Check for items on the clicked possition, and display them in the Item List Tab, if they're in reach
-			Vector3 position = Camera.main.ScreenToWorldPoint(UnityEngine.Input.mousePosition);
+			//Check for items on the clicked position, and display them in the Item List Tab, if they're in reach
+			Vector3 position = MousePosition;
 			position.z = 0f;
 			if (PlayerManager.LocalPlayerScript.IsInReach(position))
 			{
@@ -117,14 +184,13 @@ public class InputController : MonoBehaviour
 			{
 				return false;
 			}
-			//Check for items on the clicked possition, and display them in the Item List Tab, if they're in reach
-			Vector3 position = Camera.main.ScreenToWorldPoint(UnityEngine.Input.mousePosition);
+			Vector3 position = MousePosition;
 			position.z = 0f;
 			UIManager.CheckStorageHandlerOnMove(currentSlot.Item);
 			currentSlot.Clear();
 			//				Logger.Log( $"Requesting throw from {currentSlot.eventName} to {position}" );
 			PlayerManager.LocalPlayerScript.playerNetworkActions
-				.CmdRequestThrow(currentSlot.eventName, position, (int) UIManager.DamageZone);
+				.CmdRequestThrow(currentSlot.eventName, position, (int)UIManager.DamageZone);
 
 			//Disabling throw button
 			UIManager.Action.Throw();
@@ -142,7 +208,7 @@ public class InputController : MonoBehaviour
 		else
 			playerPos = transform.position;
 
-		Vector2 dir = (Camera.main.ScreenToWorldPoint(UnityEngine.Input.mousePosition) - playerPos).normalized;
+		Vector2 dir = (MousePosition - playerPos).normalized;
 
 		if (!EventSystem.current.IsPointerOverGameObject() && playerMove.allowInput)
 		{
@@ -150,14 +216,36 @@ public class InputController : MonoBehaviour
 		}
 	}
 
-	private bool RayHit()
+	/// <summary>
+	/// Checks the gameobjects the mouse is over and triggers interaction for the highest object that has an interaction
+	/// to perform.
+	/// </summary>
+	/// <param name="isDrag">is this during (but not at the very start of) a drag?</param>
+	/// <returns>true iff there was a hit that caused an interaction</returns>
+	private bool RayHitInteract(bool isDrag)
 	{
-		Vector3 position = Camera.main.ScreenToWorldPoint(UnityEngine.Input.mousePosition);
+		Renderer hitRenderer;
+		return RayHit(isDrag, out hitRenderer, true);
+	}
+
+	/// <summary>
+	/// Checks the gameobjects the mouse is over and triggers interaction for the highest object that has an interaction
+	/// to perform.
+	/// </summary>
+	/// <param name="isDrag">is this during (but not at the very start of) a drag?</param>
+	/// <param name="hitRenderer>renderer of the gameobject that had an interaction</param>
+	/// <param name="interact">true iff there was an interaction that occurred</param>
+	/// <returns>true iff there was a hit that caused an interaction</returns>
+	private bool RayHit(bool isDrag, out Renderer hitRenderer, bool interact = false)
+	{
+		hitRenderer = null;
+
+		Vector3 mousePosition = MousePosition;
 
 		//for debug purpose, mark the most recently touched tile location
-		//	LastTouchedTile = new Vector2(Mathf.Round(position.x), Mathf.Round(position.y));
+		//	LastTouchedTile = new Vector2(Mathf.Round(mousePosition.x), Mathf.Round(mousePosition.y));
 
-		RaycastHit2D[] hits = Physics2D.RaycastAll(position, Vector2.zero, 10f, layerMask);
+		RaycastHit2D[] hits = Physics2D.RaycastAll(mousePosition, Vector2.zero, 10f, layerMask);
 
 		//collect all the sprite renderers
 		List<Renderer> renderers = new List<Renderer>();
@@ -178,11 +266,18 @@ public class InputController : MonoBehaviour
 			foreach (Renderer _renderer in renderers.OrderByDescending(sr => sr.sortingOrder))
 			{
 				// If the ray hits a FOVTile, we can continue down (don't count it as an interaction)
-				// Matrix is the base Tilemap layer. It is used for matrix detection but gets in the way 
+				// Matrix is the base Tilemap layer. It is used for matrix detection but gets in the way
 				// of player interaction
 				if (!_renderer.sortingLayerName.Equals("FieldOfView"))
 				{
-					if (Interact(_renderer.transform, position))
+					hitRenderer = _renderer;
+
+					if (!interact)
+					{
+						break;
+					}
+
+					if (Interact(_renderer.transform, mousePosition, isDrag))
 					{
 						isInteracting = true;
 						break;
@@ -193,7 +288,7 @@ public class InputController : MonoBehaviour
 
 		//Do interacts below: (This is because if a ray returns true but there is no interaction, check click
 		//will not continue with the Interact call so we have to make sure it does below):
-		if (!isInteracting)
+		if (interact && !isInteracting)
 		{
 			//returning false then calls InteractHands from check click:
 			return false;
@@ -260,7 +355,7 @@ public class InputController : MonoBehaviour
 		Vector2 mousePos = Input.mousePosition;
 		Vector2 viewportPos = cam.ScreenToViewportPoint(mousePos);
 		if (viewportPos.x < 0.0f || viewportPos.x > 1.0f || viewportPos.y < 0.0f || viewportPos.y > 1.0f) return false; // out of viewport bounds
-		// Cast a ray from viewport point into world
+																														// Cast a ray from viewport point into world
 		Ray ray = cam.ViewportPointToRay(viewportPos);
 
 		// Check for intersection with sprite and get the color
@@ -284,21 +379,21 @@ public class InputController : MonoBehaviour
 			return false;
 		}
 		// Craete a plane so it has the same orientation as the sprite transform
-		Plane plane = new Plane(transform.forward, transform.position);
-		// Intersect the ray and the plane
+		Plane plane = new Plane(transform.forward, (Vector2)transform.position); //????????
+																				 // Intersect the ray and the plane
 		float rayIntersectDist; // the distance from the ray origin to the intersection point
 		if (!plane.Raycast(ray, out rayIntersectDist)) return false; // no intersection
-		// Convert world position to sprite position
-		// worldToLocalMatrix.MultiplyPoint3x4 returns a value from based on the texture dimensions (+/- half texDimension / pixelsPerUnit) )
-		// 0, 0 corresponds to the center of the TEXTURE ITSELF, not the center of the trimmed sprite textureRect
+																	 // Convert world position to sprite position
+																	 // worldToLocalMatrix.MultiplyPoint3x4 returns a value from based on the texture dimensions (+/- half texDimension / pixelsPerUnit) )
+																	 // 0, 0 corresponds to the center of the TEXTURE ITSELF, not the center of the trimmed sprite textureRect
 		Vector3 spritePos = spriteRenderer.worldToLocalMatrix.MultiplyPoint3x4(ray.origin + (ray.direction * rayIntersectDist));
 		Rect textureRect = sprite.textureRect;
 		float pixelsPerUnit = sprite.pixelsPerUnit;
 		float halfRealTexWidth = sprite.rect.width * 0.5f;
 		float halfRealTexHeight = sprite.rect.height * 0.5f;
 
-		int texPosX = (int) (sprite.rect.x + (spritePos.x * pixelsPerUnit + halfRealTexWidth));
-		int texPosY = (int) (sprite.rect.y + (spritePos.y * pixelsPerUnit + halfRealTexHeight));
+		int texPosX = (int)(sprite.rect.x + (spritePos.x * pixelsPerUnit + halfRealTexWidth));
+		int texPosY = (int)(sprite.rect.y + (spritePos.y * pixelsPerUnit + halfRealTexHeight));
 
 		// Check if pixel is within texture
 		if (texPosX < 0 || texPosX < textureRect.x || texPosX >= Mathf.FloorToInt(textureRect.xMax)) return false;
@@ -308,12 +403,28 @@ public class InputController : MonoBehaviour
 		return true;
 	}
 
-	public bool Interact(Transform _transform)
+	/// <summary>
+	/// Check for and process (if the interaction should occur) an interaction on the gameobject with the given transform.
+	/// </summary>
+	/// <param name="_transform">transform to check the interaction of</param>
+	/// <param name="isDrag">is this during (but not the very start of) a drag?</param>
+	/// <returns>true iff an interaction occurred</returns>
+	public bool Interact(Transform _transform, bool isDrag)
 	{
-		return Interact(_transform, _transform.position);
+		return Interact(_transform, _transform.position, isDrag);
 	}
 
-	public bool Interact(Transform _transform, Vector3 position)
+
+	/// <summary>
+	/// Checks for the various interactions that can occur and delegates to the appropriate trigger classes.
+	/// Note that only one interaction is allowed to occur in this method - the first time any trigger returns true
+	/// (indicating that interaction logic has occurred), the method returns.
+	/// </summary>
+	/// <param name="_transform">transform to check the interaction of</param>
+	/// <param name="position">position the interaction is taking place</param>
+	/// <param name="isDrag">is this during (but not at the very start of) a drag?</param>
+	/// <returns>true iff an interaction occurred</returns>
+	public bool Interact(Transform _transform, Vector3 position, bool isDrag)
 	{
 		if (playerMove.isGhost)
 		{
@@ -321,11 +432,13 @@ public class InputController : MonoBehaviour
 		}
 
 		//attempt to trigger the things in range we clicked on
-		if (PlayerManager.LocalPlayerScript.IsInReach(Camera.main.ScreenToWorldPoint(Input.mousePosition)))
+		var localPlayer = PlayerManager.LocalPlayerScript;
+		if (localPlayer.IsInReach(Camera.main.ScreenToWorldPoint(Input.mousePosition)) || localPlayer.IsHidden)
 		{
-			//Check for melee triggers first:
+			//Check for melee triggers first. If a melee interaction occurs, stop checking for any further interactions
 			MeleeTrigger meleeTrigger = _transform.GetComponentInParent<MeleeTrigger>();
-			if (meleeTrigger != null)
+			//no melee action happens due to a drag
+			if (meleeTrigger != null && !isDrag)
 			{
 				if (meleeTrigger.MeleeInteract(gameObject, UIManager.Hands.CurrentSlot.eventName))
 				{
@@ -339,7 +452,20 @@ public class InputController : MonoBehaviour
 			{
 				if (objectBehaviour.visibleState)
 				{
-					inputTrigger.Trigger(position);
+					bool interacted = false;
+					if (isDrag)
+					{
+						interacted = inputTrigger.TriggerDrag(position);
+					}
+					else
+					{
+						interacted = inputTrigger.Trigger(position);
+					}
+
+					if (interacted)
+					{
+						return true;
+					}
 
 					//FIXME currently input controller only uses the first InputTrigger found on an object
 					/////// some objects have more then 1 input trigger, like players for example
@@ -351,34 +477,60 @@ public class InputController : MonoBehaviour
 						P2PInteractions playerInteractions = inputTrigger.gameObject.GetComponent<P2PInteractions>();
 						if (playerInteractions != null)
 						{
-							playerInteractions.Trigger(position);
+							if (isDrag)
+							{
+								interacted = playerInteractions.TriggerDrag(position);
+							}
+							else
+							{
+								interacted = playerInteractions.Trigger(position);
+							}
 						}
 					}
-					return true;
+					if (interacted)
+					{
+						return true;
+					}
 				}
 				//Allow interact with cupboards we are inside of!
-				ClosetControl cCtrl = inputTrigger.GetComponent<ClosetControl>();
-				if (cCtrl && cCtrl.transform.position == PlayerManager.LocalPlayerScript.transform.position)
+				ClosetControl closet = inputTrigger.GetComponent<ClosetControl>();
+				//no closet interaction happens when dragging
+				if (closet && Camera2DFollow.followControl.target == closet.transform && !isDrag)
 				{
-					inputTrigger.Trigger(position);
-					return true;
+
+					if (inputTrigger.Trigger(position))
+					{
+						return true;
+					}
 				}
 				return false;
 			}
 		}
+
 		//if we are holding onto an item like a gun attempt to shoot it if we were not in range to trigger anything
-		return InteractHands();
+		return InteractHands(isDrag);
 	}
 
-	private bool InteractHands()
+	private bool InteractHands(bool isDrag)
 	{
 		if (UIManager.Hands.CurrentSlot.Item != null && objectBehaviour.visibleState)
 		{
 			InputTrigger inputTrigger = UIManager.Hands.CurrentSlot.Item.GetComponent<InputTrigger>();
 			if (inputTrigger != null)
 			{
-				inputTrigger.Trigger();
-				return true;
+				bool interacted = false;
+				if (isDrag)
+				{
+					interacted = inputTrigger.TriggerDrag();
+				}
+				else
+				{
+					interacted = inputTrigger.Trigger();
+				}
+				if (interacted)
+				{
+					return true;
+				}
 			}
 		}
 

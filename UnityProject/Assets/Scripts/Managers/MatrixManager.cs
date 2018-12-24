@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -52,9 +52,15 @@ public class MatrixManager : MonoBehaviour
 		return isAtInternal( mat => mat.Matrix.IsNoGravityAt( WorldToLocalInt( worldPos, mat ) ) );
 	}
 
-	///Cross-matrix edition of <see cref="Matrix.IsFloatingAt(GameObject,UnityEngine.Vector3Int)"/>
-	///<inheritdoc cref="Matrix.IsFloatingAt(GameObject,UnityEngine.Vector3Int)"/>
+	///Cross-matrix edition of <see cref="Matrix.IsFloatingAt(GameObject[],UnityEngine.Vector3Int)"/>
+	///<inheritdoc cref="Matrix.IsFloatingAt(GameObject[],UnityEngine.Vector3Int)"/>
 	public static bool IsFloatingAt(GameObject context, Vector3Int worldPos){
+		return isAtInternal( mat => mat.Matrix.IsFloatingAt( new []{context}, WorldToLocalInt( worldPos, mat ) ) );
+	}
+
+	///Cross-matrix edition of <see cref="Matrix.IsFloatingAt(GameObject[],UnityEngine.Vector3Int)"/>
+	///<inheritdoc cref="Matrix.IsFloatingAt(GameObject[],UnityEngine.Vector3Int)"/>
+	public static bool IsFloatingAt(GameObject[] context, Vector3Int worldPos){
 		return isAtInternal( mat => mat.Matrix.IsFloatingAt( context, WorldToLocalInt( worldPos, mat ) ) );
 	}
 
@@ -70,12 +76,12 @@ public class MatrixManager : MonoBehaviour
 		return isAtInternal( mat => mat.Matrix.IsEmptyAt( WorldToLocalInt( worldPos, mat ) ) );
 	}
 
-	///Cross-matrix edition of <see cref="Matrix.IsPassableAt(UnityEngine.Vector3Int,UnityEngine.Vector3Int,bool)"/>
-	///<inheritdoc cref="Matrix.IsPassableAt(UnityEngine.Vector3Int,UnityEngine.Vector3Int,bool)"/>
+	///Cross-matrix edition of <see cref="Matrix.IsPassableAt(UnityEngine.Vector3Int,UnityEngine.Vector3Int,bool,GameObject)"/>
+	///<inheritdoc cref="Matrix.IsPassableAt(UnityEngine.Vector3Int,UnityEngine.Vector3Int,bool,GameObject)"/>
 	/// FIXME: not truly cross-matrix. can walk diagonally between matrices
-	public static bool IsPassableAt(Vector3Int worldOrigin, Vector3Int worldTarget, bool includingPlayers = true) {
+	public static bool IsPassableAt(Vector3Int worldOrigin, Vector3Int worldTarget, bool includingPlayers = true, GameObject context = null) {
 		return isAtInternal( mat => mat.Matrix.IsPassableAt( WorldToLocalInt( worldOrigin, mat ),
-															 WorldToLocalInt( worldTarget, mat ), includingPlayers ) );
+															 WorldToLocalInt( worldTarget, mat ), includingPlayers, context ) );
 	}
 	///Cross-matrix edition of <see cref="Matrix.IsPassableAt(UnityEngine.Vector3Int)"/>
 	///<inheritdoc cref="Matrix.IsPassableAt(UnityEngine.Vector3Int)"/>
@@ -153,21 +159,26 @@ public class MatrixManager : MonoBehaviour
 	///Finding all matrices
 	private void InitMatrices()
 	{
-		Matrix[] findMatrices = FindObjectsOfType<Matrix>();
-		if (findMatrices.Length < matrixCount)
+		List<Matrix> findMatrices = FindObjectsOfType<Matrix>().ToList();
+		if ( spaceMatrix ) {
+			findMatrices.Remove( spaceMatrix );
+			findMatrices.Insert( 0, spaceMatrix );
+		}
+		if (findMatrices.Count < matrixCount)
 		{
 //			Logger.Log( "Matrix init failure, will try in 0.5" );
 			StartCoroutine(WaitForLoad());
 			return;
 		}
 
-		for (int i = 0; i < findMatrices.Length; i++)
+		for (int i = 0; i < findMatrices.Count; i++)
 		{
 			MatrixInfo matrixInfo = new MatrixInfo
 			{
 				Id = i,
 				Matrix = findMatrices[i],
 				GameObject = findMatrices[i].gameObject,
+				Objects = findMatrices[i].gameObject.transform.GetComponentInChildren<ObjectLayer>().transform,
 				MatrixMove = findMatrices[i].gameObject.GetComponentInParent<MatrixMove>(),
 				MetaTileMap = findMatrices[i].gameObject.GetComponent<MetaTileMap>(),
 //				NetId is initialized later
@@ -175,15 +186,7 @@ public class MatrixManager : MonoBehaviour
 			};
 			if (!activeMatrices.Contains(matrixInfo))
 			{
-				//Space matrix has to go at index 0 in list
-				if (findMatrices[i] == spaceMatrix)
-				{
-					activeMatrices.Insert(0, matrixInfo);
-				}
-				else
-				{
-					activeMatrices.Add(matrixInfo);
-				}
+				activeMatrices.Add(matrixInfo);
 			}
 		}
 
@@ -303,9 +306,7 @@ public class MatrixManager : MonoBehaviour
 			return worldPos - matrix.Offset;
 		}
 
-		Vector3 rotatedClean = worldPos - matrix.Offset - matrix.MatrixMove.Pivot;
-		Vector3 unrotatedPos = matrix.MatrixMove.ClientState.Orientation.EulerInverted * rotatedClean;
-		return unrotatedPos + matrix.MatrixMove.Pivot;
+		return matrix.MatrixMove.ClientState.Orientation.EulerInverted * (worldPos - matrix.Offset - matrix.MatrixMove.Pivot) + matrix.MatrixMove.Pivot;
 	}
 }
 
@@ -316,6 +317,9 @@ public struct MatrixInfo
 	public Matrix Matrix;
 	public MetaTileMap MetaTileMap;
 	public GameObject GameObject;
+	/// <summary>
+	/// Transform containing all the physical objects on the map
+	public Transform Objects;
 
 	public Vector3Int InitialOffset;
 
@@ -359,6 +363,22 @@ public struct MatrixInfo
 		return Equals(Invalid) ?
 			"[Invalid matrix]" :
 			$"[({Id}){GameObject.name},offset={Offset},pivot={MatrixMove?.Pivot},state={MatrixMove?.State},netId={NetId}]";
+	}
+
+	public bool Equals( MatrixInfo other ) {
+		return Id == other.Id;
+	}
+
+	public override bool Equals( object obj ) {
+		if ( ReferenceEquals( null, obj ) ) {
+			return false;
+		}
+
+		return obj is MatrixInfo && Equals( ( MatrixInfo ) obj );
+	}
+
+	public override int GetHashCode() {
+		return Id;
 	}
 
 	///Figuring out netId. NetworkIdentity is located on the pivot (parent) gameObject for MatrixMove-equipped matrices

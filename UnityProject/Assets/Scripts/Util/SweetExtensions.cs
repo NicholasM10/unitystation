@@ -1,9 +1,11 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using UnityEngine;
 using UnityEngine.Networking;
+using Random = UnityEngine.Random;
 
-	public static class SweetExtensions {
+public static class SweetExtensions {
 		public static ConnectedPlayer Player( this GameObject go ) {
 			var connectedPlayer = PlayerList.Instance?.Get( go );
 			return connectedPlayer == ConnectedPlayer.Invalid ? null : connectedPlayer;
@@ -29,6 +31,10 @@ using UnityEngine.Networking;
 			return go.GetComponent<RegisterTile>()?.WorldPosition ?? go.transform.position;
 //			return go.GetComponent<CustomNetTransform>()?.State.position ?? go.Player()?.Script.playerSync.ServerState.WorldPosition ??  go.transform.position;
 		}
+		/// Creates garbage! Use very sparsely!
+		public static RegisterTile RegisterTile( this GameObject go ) {
+			return go.GetComponent<RegisterTile>();
+		}
 
 		/// Wraps provided index value if it's more that array length
 		public static T Wrap<T>(this T[] array, int index)
@@ -40,7 +46,7 @@ using UnityEngine.Networking;
 			return new BoundsInt( pos - new Vector3Int( 1, 1, 0 ), new Vector3Int( 3, 3, 1 ) );
 		}
 
-		private const float NO_BOOST_THRESHOLD = 1f;
+		private const float NO_BOOST_THRESHOLD = 1.5f;
 
 		/// Lerp speed modifier
 		public static float SpeedTo( this Vector3 lerpFrom, Vector3 lerpTo ) {
@@ -49,7 +55,41 @@ using UnityEngine.Networking;
 				return 1;
 			}
 
-			return 1 + ( (distance - NO_BOOST_THRESHOLD) * 2 );
+			float boost = (distance - NO_BOOST_THRESHOLD) * 2;
+			if ( boost > 0 ) {
+				Logger.LogTraceFormat( "Lerp speed boost exceeded by {0}", Category.Lerp, boost );
+			}
+			return 1 + boost;
+		}
+
+		/// Randomized hitzone. 0f for totally random, 0.99f for 99% chance of provided one
+		/// <param name="aim"></param>
+		/// <param name="hitProbability">0f to 1f: chance of hitting the requested body part</param>
+		public static BodyPartType Randomize( this BodyPartType aim, float hitProbability = 0.8f )
+		{
+			float normalizedRange = Mathf.Clamp( hitProbability, 0f, 1f );
+			if ( Random.value < (normalizedRange/100f) ) {
+				return aim;
+			}
+			int t = (int) Mathf.Floor(Random.value * 40);
+			//	3/40
+			if (t <= 3)
+				return BodyPartType.HEAD;
+			if (t <= 10)
+			//	7/40
+				return BodyPartType.LEFT_ARM;
+			if (t <= 17)
+			//	7/40
+				return BodyPartType.RIGHT_ARM;
+			if (t <= 24)
+			//	7/40
+				return BodyPartType.LEFT_LEG;
+			if (t <= 31)
+			//	7/40
+				return BodyPartType.RIGHT_LEG;
+			//todo: don't forget to add groin!
+			//	9/40
+			return BodyPartType.CHEST;
 		}
 
 		/// Serializing Vector2 (rounded to int) into plaintext
